@@ -1,13 +1,12 @@
-# Data analysis of cotton MNase-seq datasets
+# Data analysis of external datasets: ChIP-seq, DNase-seq, etc. 
 ---
 
-Outline: 
+## 1. get seq from SRA
 
-* Process reads: quality filter and trimming
-* Map reads: mapping rates, check consistency acorss libraries
-* Generate and compare genomic coverage profiles: nucleosome occupancy (heavy & light), nuclease sensitivity (Light-heavy), nucleosome dycad positioning
-* Peak calling from nuclease sensitivity profile to infer potential regulatory regions
-* Investigate the genomic/genetic location of peaks, correlation with expression, etc. 
+
+##
+
+
 
 ## 1. Preprocessing of DNA sequencing datasets
 
@@ -23,14 +22,10 @@ Paired-end reads of 16 samples: 4 species (A2, D5, A2xD5, Maxxa) X 2 digestive c
 #### Checking read quality with [FastQC](http://www.bioinformatics.bbsrc.ac.uk/projects/fastqc/)
     cd ..
     module load fastqc/0.11.3
-    module load py-multiqc
     mkdir QCreport
     mkdir QCreport/raw
     mkdir QCreport/trimmed
     fastqc -o QCreport/raw rawfastq/*gz
-    # results were collected from all samples into a single report for easy comparison with MultiQC (Ewels et al., 2016)
-    cd QCreport/raw
-    multiqc .
     
 #### Quality trimming and adaptor removal
 We usually use [Sickle](https://github.com/najoshi/sickle) to trim off sequences below quality threshold, and another popular tool is  [Fastx toolkit](http://hannonlab.cshl.edu/fastx_toolkit/). One more alternative to remove adpaters or primers is [cutadapt](https://cutadapt.readthedocs.io/). Based FastQC results above, illumina universal adaptor removal is necessay, and [Trim Galore](http://www.bioinformatics.babraham.ac.uk/projects/trim_galore/) appears to be a really nice wrapper tool of FastQC and Cutadapt, quite easy to use! 
@@ -45,8 +40,6 @@ We usually use [Sickle](https://github.com/najoshi/sickle) to trim off sequences
     grep 'Number of sequence pairs' trimmed/*report.txt >>trimmed/summary.txt
     # QC again
     fastqc -o QCreport/trimmed/ trimmed/*val*
-    cd QCreport/trimmed
-    multiqc .
 
 ### Cotton reference genomes
 [CottonGen](https://www.cottongen.org/data/download/genome#Ass) compiles all published cotton genomes, and I will need 4 different reference genomes for AD1, A2, D5 and A2xD5. An improved AD1 reference became available on [Phytozome](https://phytozome.jgi.doe.gov/pz/portal.html#!info?alias=Org_Ghirsutum_er).
@@ -54,31 +47,8 @@ We usually use [Sickle](https://github.com/najoshi/sickle) to trim off sequences
     mkdir refGenomes
     cd refGenomes
     module load bowtie2
-    
     ### D5_JGI - Paterson et al. 2012 Nature
     ln -s ~/jfw-lab/GenomicResources/archived_resources/gmapdb/D5/Dgenome2_13.fasta
-    
-    ### AD1_458 - Saski et al, 2017 
-    ln -s ~/jfw-lab/GenomicResources/archived_resources/AD1Saski/v1.1/assembly/Ghirsutum_458_v1.0.fa.gz
-    zcat Ghirsutum_458_v1.0.fa.gz |grep -n '>scaffold'|head -10 
-    # 27134894:>scaffold_27
-    zcat Ghirsutum_458_v1.0.fa.gz |head -27134893 >TM1new_26.fasta 
-  
-    ### A2Du2018 - Du et al, 2018 
-    ln -s ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Du2018/1.PacBio-Gar-Assembly-v1.0/G.arboreum.Chr.v1.0.fasta.gz
-    zcat G.arboreum.Chr.v1.0.fasta.gz |grep -n '>tig'|head -10 
-    # 40:>tig00000043
-    zcat G.arboreum.Chr.v1.0.fasta.gz |head -39 >A2Du_13.fasta
-    
-    ### A2Du + D5 as ref for A2xD5
-    sed 's/>Chr/>A/g' A2Du_13.fasta >At.fasta
-    sed 's/>Chr/>D/g' Dgenome2_13.fasta >Dt.fasta
-    cat At.fasta Dt.fasta >F1_26.fasta
-    grep '>' F1_26.fasta 
-    rm At.fasta
-    rm Dt.fasta
-
-    #-----------OLD---------------
     ### A2_BGI - Li et al. 2014 Nature Genetics
     ln -s ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Li/A2genome_13.fasta
     ### AD1_NBI - Zhang et al, 2016 Nature biotechnology
@@ -92,8 +62,19 @@ We usually use [Sickle](https://github.com/najoshi/sickle) to trim off sequences
     grep '>' F1_26.fasta
     rm F1_26t.fasta
     
-Now build bowtie reference
-
+    ### AD1_458 - Saski et al, 2017 
+    ln -s ~/jfw-lab/GenomicResources/archived_resources/AD1Saski/v1.1/assembly/Ghirsutum_458_v1.0.fa.gz
+    zcat Ghirsutum_458_v1.0.fa.gz |grep -n '>scaffold'|head -10 
+    # 27134894:>scaffold_27
+    zcat Ghirsutum_458_v1.0.fa.gz |head -27134893 >TM1new_26.fasta 
+  
+    ### A2Du2018 - Du et al, 2018 
+    ln -s ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Du2018/1.PacBio-Gar-Assembly-v1.0/G.arboreum.Chr.v1.0.fasta.gz
+    zcat G.arboreum.Chr.v1.0.fasta.gz |grep -n '>tig'|head -10 
+    # 40:>tig00000043
+    zcat G.arboreum.Chr.v1.0.fasta.gz |head -39 >A2Du_26.fasta 
+    
+    # build bowtie2 ref
     bowtie2-build TM1_26.fasta TM1
     bowtie2-build TM1new_26.fasta TM1new
     bowtie2-build F1_26.fasta F1
@@ -101,17 +82,15 @@ Now build bowtie reference
     bowtie2-build Dgenome2_13.fasta D5
     bowtie2-build A2Du_26.fasta A2Du
 
-## 2.Read mapping and quality control
+## 2.Read mapping and calling of hypersensive sites
 
-### 2.1 Bowtie2 mapping
+### Bowtie2 mapping
 Default setting `-k 1` report 1 alignment for each read/pair) should work, while some might need to be modified as required by downstream tools.
 
     mkdir mapping
     bowtie2 -q -p 6 -t --no-mixed --no-discordant --no-unal --dovetail -x refGenomes/D5 -1 <(zcat trimmed/D1H_1_val_1.fq.gz) -2 <(zcat trimmed/D1H_2_val_2.fq.gz) -S mapping/D1H.sam 2>mapping/D1H.log
-       
-    # save chromosome size
-    head -50 mapping/D1H.sam|grep '@SQ'|awk -v OFS='\t' '{print $2,$3}'|sed 's/.N://g' > mappingF/chr.size.txt
-     
+    samtools view -bS D1H.sam | samtools sort - -o D1H.sort.bam ; samtools index D1H.sort.bam
+
 * `-x refGenomes/D5`: use ref genome
 * `-1 trimmed/D1H_1_val_1.fq`: paired end read 1
 * `-2 trimmed/D1H_2_val_2.fq`: paired end read 2
@@ -122,82 +101,7 @@ Default setting `-k 1` report 1 alignment for each read/pair) should work, while
 * `--no-unal`: Suppress SAM records for reads that failed to align.
 * `--dovetail`: allow pair to overlap and over extend
 
-Bowtie2 mapping results in `SAM` format were converted to `BAM` with a quality filter >=20.
-
-    samtools view -q 20 -bS mapping/D1H.sam | samtools sort - -o mapping/D1H_q20.bam ; samtools index mapping/D1H_q20.bam
-
-### 2.2 Mapping QC
-
-[Deeptools](http://deeptools.readthedocs.io/en/latest/index.html) provide basic QC utilities:
-
-* Assess sequencing depth - `plotCoverage` generates two plots. The first one simply represents the frequencies of the found read coverages. The second plot shows what is the fraction of the genome that has a certain depth.
-* Check fragment size - `bamPEFragmentSize`.
-* Assess the reproducibility of replicates by computing sample correlations - `multiBamSummary` followed by `plotCorrelation`, `plotPCA`.
-
-08/07/18: Command can be ran on biocrunch2 and speedy, but not biocrunch:
-
-    module load py-deeptools
-    # input bams need to be sorted and index
-    plotCoverage -b *q20.bam -o plotCoverage.pdf --ignoreDuplicates --minMappingQuality 20
-    bamPEFragmentSize -b *q20.bam -hist plotPEFragmentSize.png
-    
-
-    multiBamSummary bins -b *q20.bam -out mapping.results.npz --outRawCounts mapping.results.tab
-    head mapping.results.tab
-    plotCorrelation -in mapping.results.npz -o plotHeatmap_pearson.pdf --corMethod pearson --skipZeros --removeOutliers --whatToPlot heatmap --colorMap RdYlBu --plotNumbers --outFileCorMatrix plotHeatmap_pearson.tab.txt
-    plotPCA -in mapping.results.npz -o plotPCA.pdf -T "PCA of mapping profiles"
-
-If good correlations are seen between replicates, we will combind replicates in following analysis.
-
-### 2.3 Convert BAM to BED and pool replicates
-
-Quality filtered `BAM` results will be converted to `BED` format, e.g. 
-   
-    samtools sort -n D1H_q20.bam | bedtools bamtobed -i - -bedpe  | cut -f 1,2,6,7,8,9 | sort -T . -k1,1 -k2,2n -S 1G  > D1L_q20.bed
-
-For both heavy and light digestions (e.g. `D1H_q20.bed`, `D2H_q20.bed`), a combo `BED` file (`DcH_q20.bed`) will be made by merging equal amount of mapped fragments from replicates. 
-
-See wrapper r script [repBam2Bed.r](repBam2Bed.r).
-
-## 3.Differential nuclease sensitivity profiling analysis
-
-### 3.1 Segmentation of sensitive and resistant fragments
-
-The algorithm [iSeg](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2140-3) ([web server](http://lebesgue.fgcu.edu/iSeg)) identifies candidate segments from normalized differential genome coverage - [latest source v180809b]().
-
-First, input files for iSeg need to be prepared from BED files, including individual and pooled runs, using script [iseg.pre.r](iseg.pre.r). The coverage of Heavy and Light digested reads were estimated and quantile normalized across 20 bp windows tilling the genome, to generate DNS (D = L - H) profiles. Once BedGrapgh files (e.g. `A6D_q20_chr.size_w20_qnorm.bg`) are ready, inspect their MAD and SD values across genome.
-
-Noting the differences in MAD between genomes (see "sumMDS.txt"), quantile normalization was performed for pooled D profiles ("sumMDS_quantile.txt"), and then subjected to iSeg analysis, using script [iseg.run.r](iseg.run.r). The example commands of iSeg are:
-
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 13 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/A6Dn_q20_chr.size_w20_qnorm_qnorm.bg -of A6Dn >iseg/A6Dn.manifest.txt
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 13 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/DcD_q20_chr.size_w20_qnorm_qnorm.bg -of DcD >iseg/DcD.manifest.txt
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 26 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/FcD_q20_chr.size_w20_qnorm_qnorm.bg -of FcD >iseg/FcD.manifest.txt
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 26 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/McD_q20_chr.size_w20_qnorm_qnorm.bg -of McD >iseg/McD.manifest.txt
-
-The raw segmentation output file contains 6 columns: chr, start, end, height, t-stat, p-value. Use script [iseg.summary.r](iseg.summary.r) to generate some summary plots, including the number, size and distribution of detected segments. This can also be done using the iSeg python wrapper version.
- 
-### 3.2 Genomic annotation of segments
-
-Use ChIPseeker for peak annotation with [segAnno.r](segAnno.r): 
-
-1. visualizing segment locations on chromosomes
-2. plot coverage profile and heatmap over TSS
-3. annotate genomic location of segments with nearby genes.
-
-### 3.3 Integrated analysis with RNA-seq data
-
-See [DA_RNAseq.md](DA_RNAseq.md) for processing RNA-seq data. Following analysis were conducted with [expNuc.r](expNuc.r):
-
-1. inspect H, L and D profiles around TSS and TTS in association with expression quantiles in each species
-2. Inspect 
-inspect the presence of MSFs in 1kb promoter region, 
-[]()
-  
-### 3.3 Fuctional annotation
-### 3.4 Motif
-
----
-
+### Differential nuclease sensitivity profiling analysis
 Bowtie2 mapping results in `SAM` format were converted to `BAM` with a quality filter >=20, and then further converted to `BED` format. Each `BED` file was parsed into two fragment size ranges, 0-130bp and 130-260bp. Genome coverage was next calculated in RPM for Light, heavy and difference of Light-Heavy digestive conditions at each range, the resulted `BedGraph` files were compressed to `BigWig` files.
 
 See pipeline scripts in [dns.r](dns.r).
@@ -212,19 +116,23 @@ Taking sample **A6** for example, by inputing mapping results of its heavy and l
 * BedGrapgh files of genome coverage: `A6H_q20_unified.bg`,`A6L_q20_unified.bg`,`A6D_q20_unified.bg`; `A6H_q20_000-130_unified.bg`, `A6L_q20_000-130_unified.bg`, `A6D_q20_000-130_unified.bg`;  `A6H_q20_130-260_unified.bg`,  `A6L_q20_130-260_unified.bg`, `A6D_q20_130-260_unified.bg`. 
 * BigWig files:  `A6H_q20_unified.bw`, `A6L_q20_unified.bw`, `A6D_q20.bw_unified`; `A6H_q20_000-130_unified.bw`, `A6L_q20_000-130_unified.bw`, `A6D_q20_000-130_unified.bw`;  `A6H_q20_130-260_unified.bw`,  `A6L_q20_130-260_unified.bw`, `A6D_q20_130-260_unified.bw`. 
 
----
-Next, 
 
-    library(GenomicFeatures)
-    library(genomation)
-    txdb <- loadDb("refGenomes/txdb.TM1saski.sqlite")
-    TSS = promoters(txdb, upstream=1000, downstream=1000)
-    bw.files<-list.files("mappingMnew", pattern="..D.*w20_qnorm.bw",full.names=TRUE)
-    sml = ScoreMatrixList(target = bw.files, windows = TSS, type="bigWig",strand.aware=TRUE)
+### Segmentation of sensitive and resistent fragments
 
+The algorithm [iSeg](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2140-3) identifies candidate segments from normlized differential genome coverage - [latest source v180806](https://www.dropbox.com/s/ukpnc8jzdkrl4ru/iSegv180806b.tar?dl=1).
 
- 
+Use pipeline scripts [iseg.r](iseg.r) to prepare Input files: calculate H and L NOC profiles for 20 bp window and normalized before extracting DNS (D = L - H):
 
+* BedGrapgh files of 20bp sliding window coverage: `A6H_q20_chr.size_w20.bg`, `A6L_q20_chr.size_w20.bg`.
+* Quantile normalized BedGraph: `A6H_q20_chr.size_w20_qnorm.bg`, `A6L_q20_chr.size_w20_qnorm.bg`,
+`A6D_q20_chr.size_w20_qnorm.bg`.
+* Convert BedGraph to gff file (optional) ```awk '{print $1,$2,$3,".",".",$4}' OFS='\t' A6D_q20_chr.size_w20_qnorm.bg > A6D_q20_chr.size_w20_qnorm.gff```
+
+Analyze whole-genome file 
+
+    ~/iSegv180806/iseg -cz -ctp -nc 13 -bc 1 -minwl 10 -maxwl 100 -d A6D_q20_chr.size_w20_qnorm.bg -of iseg/A6D_bc1.txt >iseg/A6D_bc1.log 
+
+The raw segmentation output file contains 6 columns: chr, start, end, height, t-stat, p-value. Use script [sumiSegOutput.r](sumiSegOutput.r) to generate some summary plots, including the number, size and distribution of detected segments.
 
 
 
@@ -247,7 +155,17 @@ Visualization and exploration of sequencing tracks (`BigWig`) around genomic fea
 * [Genomation](https://bioconductor.org/packages/release/bioc/html/genomation.html) - R package
 * [ngsplot](https://github.com/shenlab-sinai/ngsplot)
 
+### Assess the reproducibility of replicates
+Using coverages before size partition, check if Replicates correlate better than non-replicates. Using [Deeptools](http://deeptools.readthedocs.io/en/latest/index.html) for visualization of sample correlations based on the output of `multiBamSummary` or `multiBigwigSummary`. Pearson or Spearman methods are available to compute correlation coefficients. 
 
+    module load py-deeptools
+    # 08/07/18 erros on biocrunch, use biocunch2 or speedy
+    multiBigwigSummary bins -b *q20_unified.bw -out NOC.results.npz --outRawCounts NOC.results.tab
+    head NOC.results.tab
+    plotCorrelation -in NOC.results.npz -o plotHeatmap_pearson.pdf --corMethod pearson --skipZeros --removeOutliers --whatToPlot heatmap --colorMap RdYlBu --plotNumbers --outFileCorMatrix plotHeatmap_pearson.tab.txt
+    plotPCA -in NOC.results.npz -o plotPCA.pdf -T "PCA of NOC profiles"
+
+If good correlations are seen between replicates, we can consider pooling reps in following analysis.
 
 ### Check sequencing coverage, fragment size, etc.
 Two plots were generated. The first one simply represents the frequencies of the found read coverages, which helps you judge how relevant the mean coverage value (printed next to the sample name) is. If the distribution of read coverages is more or less homoskedatic and, ideally, normally distributed (most likely it won’t be), then the mean is a very appropriate proxy for sequencing depth. The second plot shows what is the fraction of the genome that has a certain depth. 
@@ -274,9 +192,6 @@ First, need to prepare genomic feature `bed` file:
     grep '^A' TM1.gene.bed >TM1.gene.A.bed
     grep '^D' TM1.gene.bed >TM1.gene.D.bed
     cd ..
-    
-    cd mappingMnew
-    zcat ~/jfw-lab/GenomicResources/archived_resources/AD1Saski/annotation/Ghirsutum_458_v1.1.gene_exons.gff3.gz |head
     
     cd mappingA
     head ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Li/A2Li.exons.gff

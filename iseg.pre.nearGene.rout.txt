@@ -1,0 +1,815 @@
+
+R version 3.5.0 (2018-04-23) -- "Joy in Playing"
+Copyright (C) 2018 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+[Previously saved workspace restored]
+
+> ####### DNS-seq pipline ########
+> ## See detailed notes "iSeg_analysis_notes"
+> 
+> ## Pre-installed programs
+> # * kent source utilities - "bedGraphToBigWig"
+> # export PATH="$PATH:~/kent"
+> # module load R
+> # module load bedtools2
+> # R
+> 
+> library(travis)
+Loading required package: gplots
+
+Attaching package: ‘gplots’
+
+The following object is masked from ‘package:stats’:
+
+    lowess
+
+Loading required package: parallel
+Loading required package: tools
+Loading required package: gtools
+Loading required package: readr
+Loading required package: conifur
+Loading required package: gyro
+Loading required package: converge
+> options(threads=8)
+> options(verbose=T)
+> 
+> # mappiable ref region, faster with bg
+> library(data.table)
+now dyn.load("/home/hugj2006/R/x86_64-pc-linux-gnu-library/3.5/data.table/libs/datatable.so") ...
+> getEffectiveRefSize.bg=function(bedGraphFile){
++     rpm <- fread(bedGraphFile, select = 4)$V4;
++     start <- fread(bedGraphFile, select = 2)$V2;
++     end <- fread(bedGraphFile, select = 3)$V3;
++     ts <- end-start
++     cs <- sum(ts[rpm!=0])
++     return(cs)
++ }
+> # calculate SD and MAD
+> getMAD<-function(bg, by.chr=FALSE)
++ {
++     df<-fread(bg)
++     names(df)<-c("chr","start","end","cov")
++     val<-rep(df$cov, df$end-df$start)
++     MAD = median(abs(val-median(val)))
++     # SD = 1.4826 * MAD
++     res<-MAD
++     names(res)="all"
++     if(by.chr==TRUE)
++     {
++         chrs = unique(df$chr)
++         for(i in chrs){
++             df_chr = df[chr==i]
++             val<-rep(df_chr$cov, df_chr$end-df_chr$start)
++             MAD = median(abs(val-median(val)))
++             names(MAD)=i
++             res = c(res,MAD)
++         }
++     }
++     return(res)
++ }
+> getSD <- function(bg)
++ {
++     val<-fread(bg,select=4)$V4
++     return(sd(val))
++ }
+> 
+> 
+> 
+> # coverage with reads per million covering 1MB
+> genomes = c("AD1","F1","A2","D5")
+> tags=c("M","F","A","D")
+> dirs = c("mappingMnew","mappingF","mappingA_new","mappingD")
+> for(i in 1:4)
++ {
++     genome = genomes[i]
++     dir=dirs[i]
++     setwd(paste0("/work/LAS/jfw-lab/hugj2006/cottonLeaf/",dir))
++     
++     # start with bed files from H and L, get coverage for20bp windows, quantile normalize, then get difference L-H
++     # allbeds=files("*.bed")
++     # make sure to use only unparsed data
++     upbeds = files("*q20.bed")
++     
++     # subset reads to gene regions
++     for(i in upbeds)
++     {system(paste0("bedtools window -a ",i," -b ../refGenomes/",genome,".og.bed -l 3000 -r 3000 | cut -f1-6 |uniq >",gsub("q20","q20.genic",i)))}
++     genbeds = list.files(pattern="q20.genic.bed")
++     print(genbeds)
++     
++     # make 20bp windows genome wide
++     chromsizes="chr.size.txt"
++     # w=bedtoolsMakeWindows(chromsizes,20,genome=T)
++     w="chr.size_w20.bed"
++     print(w)
++     
++     # subset 20 bp windowns to gene regions, some redundant due to overlapped regions between genes
++     system(paste0("bedtools window -a ",w," -b ../refGenomes/",genome,".og.bed -l 3000 -r 3000 | cut -f1-3 |uniq >",gsub("w20","w20.genic",w)))
++     genw = gsub("w20","w20.genic",w)
++     print(genw)
++     
++     # calculate genomce coverge, NOT rpm
++     bgs=bedtoolsCoverage(genbeds,genw,scalar = 1)
++     print(bgs)
++     
++     # get some numbers
++     readN = filelines(genbeds, threads = getOption("threads", 1L))
++     effSize = sapply(bgs,getEffectiveRefSize.bg)
++     refSize=filelines(genw)*20
++     print(data.frame(readN,effSize, refSize))
++     write.table(data.frame(readN,effSize, refSize), file=paste0("../iseg/", genomes[i],"_genic_par.txt"), row.names=T,col.names=T,quote=FALSE,sep="\t")
++     
++     # deption correction: effRefSize/totalReadsreadN
++     cmd = paste0("awk '{print $1,$2  ,$3 ,$4* ",effSize/readN," }' OFS='\t' ",bgs," > ",gsub(".bg$",".depth.bg",bgs))
++     cmdRun(cmd,threads = getOption("threads", 1L))
++     sbgs = gsub(".bg$",".depth.bg",bgs)
++     # quantiel normalize
++     qsbgs=bgQuantileNorm(sbgs)
++     print(qsbgs)
++     
++     # examine SD, see what correction and qnorm did
++     print(data.frame(sapply(bgs,getSD), sapply(sbgs,getSD), sapply(qsbgs,getSD) ))
++     
++     # now prepare normlized w20 coverge files for L-H
++     l=grep("L",qsbgs,value=TRUE)
++     h=grep("H",qsbgs,value=TRUE)
++     # check to see if light and heavy are paired properly
++     print(data.frame(l,h))
++     
++     # calculate difference between light and heavy
++     dbgs=bgOps(l,"difference",h,pattern="L",replacement="D")
++     print(dbgs)
++     # dbgs files will be used for iSeg
++     
++     #list.files(pattern="genic")
++     #file.remove(l)
++     
++     # convert bedGraph files to bigWig
++     bws=bedGraphToBigWig(c(l,h,dbgs),chromsizes)
++     # The resulting bigWig files can be used on most genome browsers
++     print(bws)
++     
++     # Check MAD and SD before running iSeg
++     # define input
++     # dbgs = grep("..D.*genic.depth_qnorm.bg",list.files(),value=TRUE)
++     res=cbind(sapply(dbgs,function(x)getMAD(x, by.chr=TRUE)))
++     colnames(res) = gsub("_.*","",dbgs)
++     print(res)
++     write.table(res, file=paste0("../iseg/", genomes[i],"_genic_MAD.txt"), row.names=T,col.names=T,quote=FALSE,sep="\t")
++ }
+[1] "M1H_q20.genic.bed" "M1L_q20.genic.bed" "M2H_q20.genic.bed"
+[4] "M2L_q20.genic.bed" "McH_q20.genic.bed" "McL_q20.genic.bed"
+[1] "chr.size_w20.bed"
+[1] "chr.size_w20.genic.bed"
+bedtools intersect -sorted -c -b M1H_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > M1H_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b M1L_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > M1L_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b M2H_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > M2H_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b M2L_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > M2L_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b McH_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > McH_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b McL_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > McL_q20.genic_chr.size_w20.genic.bg 
+[1] "M1H_q20.genic_chr.size_w20.genic.bg" "M1L_q20.genic_chr.size_w20.genic.bg"
+[3] "M2H_q20.genic_chr.size_w20.genic.bg" "M2L_q20.genic_chr.size_w20.genic.bg"
+[5] "McH_q20.genic_chr.size_w20.genic.bg" "McL_q20.genic_chr.size_w20.genic.bg"
+wc -l M1H_q20.genic.bed | awk '{print $1}' 
+wc -l M1L_q20.genic.bed | awk '{print $1}' 
+wc -l M2H_q20.genic.bed | awk '{print $1}' 
+wc -l M2L_q20.genic.bed | awk '{print $1}' 
+wc -l McH_q20.genic.bed | awk '{print $1}' 
+wc -l McL_q20.genic.bed | awk '{print $1}' 
+wc -l chr.size_w20.genic.bed | awk '{print $1}' 
+                                       readN   effSize   refSize
+M1H_q20.genic_chr.size_w20.genic.bg 20017408 314623940 334454340
+M1L_q20.genic_chr.size_w20.genic.bg 13363524 310464240 334454340
+M2H_q20.genic_chr.size_w20.genic.bg 16382626 312740680 334454340
+M2L_q20.genic_chr.size_w20.genic.bg 30568760 317120060 334454340
+McH_q20.genic_chr.size_w20.genic.bg 34059995 317871700 334454340
+McL_q20.genic_chr.size_w20.genic.bg 28490843 317372720 334454340
+awk '{print $1,$2  ,$3 ,$4* 15.7175164736613 }' OFS='	' M1H_q20.genic_chr.size_w20.genic.bg > M1H_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 23.2322132994261 }' OFS='	' M1L_q20.genic_chr.size_w20.genic.bg > M1L_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 19.0897771822417 }' OFS='	' M2H_q20.genic_chr.size_w20.genic.bg > M2H_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 10.3739916175861 }' OFS='	' M2L_q20.genic_chr.size_w20.genic.bg > M2L_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 9.33269954972102 }' OFS='	' McH_q20.genic_chr.size_w20.genic.bg > McH_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 11.1394640025218 }' OFS='	' McL_q20.genic_chr.size_w20.genic.bg > McL_q20.genic_chr.size_w20.genic.depth.bg 
+wc -l M1H_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l M1L_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l M2H_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l M2L_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l McH_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l McL_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+input data sets have equal lines
+sort -T . -k4,4g M1H_q20.genic_chr.size_w20.genic.depth.bg -o M1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g M1L_q20.genic_chr.size_w20.genic.depth.bg -o M1L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g M2H_q20.genic_chr.size_w20.genic.depth.bg -o M2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g M2L_q20.genic_chr.size_w20.genic.depth.bg -o M2L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g McH_q20.genic_chr.size_w20.genic.depth.bg -o McH_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g McL_q20.genic_chr.size_w20.genic.depth.bg -o McL_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+paste M1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp M1L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp M2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp M2L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp McH_q20.genic_chr.size_w20.genic.depth_scoresort.tmp McL_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1,$2,$3,($4+$8+$12+$16+$20+$24)/6}' OFS='	' > mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+wc -l mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1}' 
+sort -T . -k4,4g mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp -o mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp 
+bash -c 'paste <(sort -T . -k4,4g M1H_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > M1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g M1L_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > M1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g M2H_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > M2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g M2L_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > M2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g McH_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > McH_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g McL_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_M1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > McL_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "M1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[2] "M1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[3] "M2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[4] "M2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[5] "McH_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[6] "McL_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+                                    sapply.bgs..getSD. sapply.sbgs..getSD.
+M1H_q20.genic_chr.size_w20.genic.bg           5.312266            83.49561
+M1L_q20.genic_chr.size_w20.genic.bg           4.380347           101.76516
+M2H_q20.genic_chr.size_w20.genic.bg           4.681910            89.37662
+M2L_q20.genic_chr.size_w20.genic.bg           8.850662            91.81677
+McH_q20.genic_chr.size_w20.genic.bg           8.395473            78.35241
+McL_q20.genic_chr.size_w20.genic.bg           8.096169            90.18698
+                                    sapply.qsbgs..getSD.
+M1H_q20.genic_chr.size_w20.genic.bg             88.89288
+M1L_q20.genic_chr.size_w20.genic.bg             88.89288
+M2H_q20.genic_chr.size_w20.genic.bg             88.89288
+M2L_q20.genic_chr.size_w20.genic.bg             88.89288
+McH_q20.genic_chr.size_w20.genic.bg             88.89288
+McL_q20.genic_chr.size_w20.genic.bg             88.89288
+                                                l
+1 M1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 M2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+3 McL_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+                                                h
+1 M1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 M2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+3 McH_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+paste M1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg M1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > M1D_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+paste M2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg M2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > M2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+paste McL_q20.genic_chr.size_w20.genic.depth_qnorm.bg McH_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > McD_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "M1D_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[2] "M2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[3] "McD_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+bedGraphToBigWig M1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt M1L_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig M2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt M2L_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig McL_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt McL_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig M1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt M1H_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig M2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt M2H_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig McH_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt McH_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig M1D_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt M1D_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig M2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt M2D_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig McD_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt McD_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+[1] "M1L_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[2] "M2L_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[3] "McL_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[4] "M1H_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[5] "M2H_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[6] "McH_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[7] "M1D_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[8] "M2D_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[9] "McD_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+         M1D      M2D     McD
+all 56.45400 55.02830 51.9770
+A01 55.02800 53.47300 50.5512
+A02 56.45340 54.72440 52.8680
+A03 56.45400 56.28010 52.8680
+A04 58.00940 56.28040 52.8690
+A05 55.02830 54.42380 49.2980
+A06 58.18300 56.45400 53.9637
+A07 58.00900 56.27980 52.8680
+A08 56.45400 54.72440 50.8530
+A09 56.45400 56.27980 52.4083
+A10 58.31000 56.28000 54.7240
+A11 56.45400 56.28010 51.5430
+A12 54.59800 55.48800 50.6226
+A13 56.45300 56.45300 51.3130
+D01 54.72500 56.28000 51.3130
+D02 56.45370 55.48800 51.3130
+D03 57.34400 56.45400 54.7250
+D04 56.45400 55.02830 52.4083
+D05 56.45300 54.72500 50.8530
+D06 58.13703 56.45300 53.4730
+D07 56.28010 54.89855 52.8680
+D08 56.45400 55.48737 52.8678
+D09 56.45400 56.45397 53.1700
+D10 58.07996 54.72503 51.1400
+D11 57.34440 54.72503 50.9557
+D12 57.34400 55.02792 52.4080
+D13 57.44770 55.48804 52.4077
+[1] "F2H_q20.genic.bed" "F2L_q20.genic.bed" "F3H_q20.genic.bed"
+[4] "F3L_q20.genic.bed" "FcH_q20.genic.bed" "FcL_q20.genic.bed"
+[1] "chr.size_w20.bed"
+[1] "chr.size_w20.genic.bed"
+bedtools intersect -sorted -c -b F2H_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > F2H_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b F2L_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > F2L_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b F3H_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > F3H_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b F3L_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > F3L_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b FcH_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > FcH_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b FcL_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > FcL_q20.genic_chr.size_w20.genic.bg 
+[1] "F2H_q20.genic_chr.size_w20.genic.bg" "F2L_q20.genic_chr.size_w20.genic.bg"
+[3] "F3H_q20.genic_chr.size_w20.genic.bg" "F3L_q20.genic_chr.size_w20.genic.bg"
+[5] "FcH_q20.genic_chr.size_w20.genic.bg" "FcL_q20.genic_chr.size_w20.genic.bg"
+wc -l F2H_q20.genic.bed | awk '{print $1}' 
+wc -l F2L_q20.genic.bed | awk '{print $1}' 
+wc -l F3H_q20.genic.bed | awk '{print $1}' 
+wc -l F3L_q20.genic.bed | awk '{print $1}' 
+wc -l FcH_q20.genic.bed | awk '{print $1}' 
+wc -l FcL_q20.genic.bed | awk '{print $1}' 
+wc -l chr.size_w20.genic.bed | awk '{print $1}' 
+                                       readN   effSize   refSize
+F2H_q20.genic_chr.size_w20.genic.bg 13382836 302633180 322540320
+F2L_q20.genic_chr.size_w20.genic.bg 11011335 304852600 322540320
+F3H_q20.genic_chr.size_w20.genic.bg 10058482 298671480 322540320
+F3L_q20.genic_chr.size_w20.genic.bg 14812708 308687440 322540320
+FcH_q20.genic_chr.size_w20.genic.bg 18864738 308959440 322540320
+FcL_q20.genic_chr.size_w20.genic.bg 22367993 311877720 322540320
+awk '{print $1,$2  ,$3 ,$4* 22.6135312425558 }' OFS='	' F2H_q20.genic_chr.size_w20.genic.bg > F2H_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 27.6853442384597 }' OFS='	' F2L_q20.genic_chr.size_w20.genic.bg > F2L_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 29.6934945054333 }' OFS='	' F3H_q20.genic_chr.size_w20.genic.bg > F3H_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 20.8393657662056 }' OFS='	' F3L_q20.genic_chr.size_w20.genic.bg > F3L_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 16.3776162701014 }' OFS='	' FcH_q20.genic_chr.size_w20.genic.bg > FcH_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 13.9430354793119 }' OFS='	' FcL_q20.genic_chr.size_w20.genic.bg > FcL_q20.genic_chr.size_w20.genic.depth.bg 
+wc -l F2H_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l F2L_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l F3H_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l F3L_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l FcH_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l FcL_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+input data sets have equal lines
+sort -T . -k4,4g F2H_q20.genic_chr.size_w20.genic.depth.bg -o F2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g F2L_q20.genic_chr.size_w20.genic.depth.bg -o F2L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g F3H_q20.genic_chr.size_w20.genic.depth.bg -o F3H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g F3L_q20.genic_chr.size_w20.genic.depth.bg -o F3L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g FcH_q20.genic_chr.size_w20.genic.depth.bg -o FcH_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g FcL_q20.genic_chr.size_w20.genic.depth.bg -o FcL_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+paste F2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp F2L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp F3H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp F3L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp FcH_q20.genic_chr.size_w20.genic.depth_scoresort.tmp FcL_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1,$2,$3,($4+$8+$12+$16+$20+$24)/6}' OFS='	' > mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+wc -l mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1}' 
+sort -T . -k4,4g mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp -o mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp 
+bash -c 'paste <(sort -T . -k4,4g F2H_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > F2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g F2L_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > F2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g F3H_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > F3H_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g F3L_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > F3L_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g FcH_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > FcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g FcL_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_F2H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > FcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "F2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[2] "F2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[3] "F3H_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[4] "F3L_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[5] "FcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[6] "FcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+                                    sapply.bgs..getSD. sapply.sbgs..getSD.
+F2H_q20.genic_chr.size_w20.genic.bg           4.730591           106.97533
+F2L_q20.genic_chr.size_w20.genic.bg           3.528173            97.67866
+F3H_q20.genic_chr.size_w20.genic.bg           3.290882            97.71769
+F3L_q20.genic_chr.size_w20.genic.bg           4.391751            91.52127
+FcH_q20.genic_chr.size_w20.genic.bg           5.730717            93.85548
+FcL_q20.genic_chr.size_w20.genic.bg           6.036578            84.16834
+                                    sapply.qsbgs..getSD.
+F2H_q20.genic_chr.size_w20.genic.bg             94.99034
+F2L_q20.genic_chr.size_w20.genic.bg             94.99034
+F3H_q20.genic_chr.size_w20.genic.bg             94.99034
+F3L_q20.genic_chr.size_w20.genic.bg             94.99034
+FcH_q20.genic_chr.size_w20.genic.bg             94.99034
+FcL_q20.genic_chr.size_w20.genic.bg             94.99034
+                                                l
+1 F2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 F3L_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+3 FcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+                                                h
+1 F2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 F3H_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+3 FcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+paste F2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg F2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > F2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+paste F3L_q20.genic_chr.size_w20.genic.depth_qnorm.bg F3H_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > F3D_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+paste FcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg FcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > FcD_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "F2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[2] "F3D_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[3] "FcD_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+bedGraphToBigWig F2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt F2L_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig F3L_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt F3L_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig FcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt FcL_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig F2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt F2H_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig F3H_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt F3H_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig FcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt FcH_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig F2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt F2D_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig F3D_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt F3D_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig FcD_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt FcD_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+[1] "F2L_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[2] "F3L_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[3] "FcL_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[4] "F2H_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[5] "F3H_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[6] "FcH_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[7] "F2D_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[8] "F3D_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[9] "FcD_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+         F2D      F3D      FcD
+all 64.83600 67.15700 61.06600
+A01 67.05500 69.15370 61.06583
+A02 65.68100 65.68070 61.06683
+A03 65.68100 69.15370 61.06583
+A04 66.31100 70.62990 60.66110
+A05 63.39010 66.86300 58.33690
+A06 64.83500 70.62990 61.06583
+A07 64.83500 68.00480 58.74200
+A08 63.39010 65.68100 58.74200
+A09 63.39010 65.68100 58.74300
+A10 63.39010 63.39040 61.06600
+A11 64.83500 64.83500 61.06600
+A12 58.74200 61.06683 59.47750
+A13 61.06700 61.06650 61.06600
+D01 63.39083 65.71393 63.39010
+D02 69.44900 65.71410 62.51200
+D03 69.44900 68.40900 62.51200
+D04 67.89960 66.71700 63.39000
+D05 70.32880 66.12010 63.39040
+D06 65.68070 70.73460 63.39040
+D07 67.56500 67.05500 61.06683
+D08 67.56483 68.00500 61.06583
+D09 67.15983 63.79600 61.06583
+D10 66.72000 66.12000 63.38993
+D11 66.01580 67.56570 61.81027
+D12 66.72020 67.56400 61.06683
+D13 66.72020 68.41000 61.06683
+[1] "A6H_q20.genic.bed"  "A6Hn_q20.genic.bed" "A6L_q20.genic.bed" 
+[4] "A6Ln_q20.genic.bed"
+[1] "chr.size_w20.bed"
+[1] "chr.size_w20.genic.bed"
+bedtools intersect -sorted -c -b A6H_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > A6H_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b A6Hn_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > A6Hn_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b A6L_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > A6L_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b A6Ln_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > A6Ln_q20.genic_chr.size_w20.genic.bg 
+***** WARNING: File A6H_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	89001	89147	ST-E00142:388:H7MNJALXX:1:2208:13616:70293	42	+
+
+***** WARNING: File A6H_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	89001	89147	ST-E00142:388:H7MNJALXX:1:2208:13616:70293	42	+
+
+***** WARNING: File A6Hn_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	88928	89080	ST-E00310:517:HHYKTCCXY:1:1202:10033:23126	42	+
+
+***** WARNING: File A6Ln_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	88873	89039	ST-E00126:589:HHYH7CCXY:8:1118:10013:17676	42	+
+
+***** WARNING: File A6L_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	88867	89035	ST-E00126:342:HF5LCALXX:2:1206:8481:50990	42	+
+
+***** WARNING: File A6Hn_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	88928	89080	ST-E00310:517:HHYKTCCXY:1:1202:10033:23126	42	+
+
+***** WARNING: File A6Ln_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	88873	89039	ST-E00126:589:HHYH7CCXY:8:1118:10013:17676	42	+
+
+***** WARNING: File A6L_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	88867	89035	ST-E00126:342:HF5LCALXX:2:1206:8481:50990	42	+
+
+[1] "A6H_q20.genic_chr.size_w20.genic.bg" 
+[2] "A6Hn_q20.genic_chr.size_w20.genic.bg"
+[3] "A6L_q20.genic_chr.size_w20.genic.bg" 
+[4] "A6Ln_q20.genic_chr.size_w20.genic.bg"
+wc -l A6H_q20.genic.bed | awk '{print $1}' 
+wc -l A6Hn_q20.genic.bed | awk '{print $1}' 
+wc -l A6L_q20.genic.bed | awk '{print $1}' 
+wc -l A6Ln_q20.genic.bed | awk '{print $1}' 
+wc -l chr.size_w20.genic.bed | awk '{print $1}' 
+                                        readN   effSize   refSize
+A6H_q20.genic_chr.size_w20.genic.bg   1481512 110589760 159501060
+A6Hn_q20.genic_chr.size_w20.genic.bg 11354233 154996580 159501060
+A6L_q20.genic_chr.size_w20.genic.bg  20822184 156143120 159501060
+A6Ln_q20.genic_chr.size_w20.genic.bg 17807919 156581720 159501060
+awk '{print $1,$2  ,$3 ,$4* 74.6465502810642 }' OFS='	' A6H_q20.genic_chr.size_w20.genic.bg > A6H_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 13.6509951839107 }' OFS='	' A6Hn_q20.genic_chr.size_w20.genic.bg > A6Hn_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 7.49888292217569 }' OFS='	' A6L_q20.genic_chr.size_w20.genic.bg > A6L_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 8.79281402841062 }' OFS='	' A6Ln_q20.genic_chr.size_w20.genic.bg > A6Ln_q20.genic_chr.size_w20.genic.depth.bg 
+wc -l A6H_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l A6Hn_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l A6L_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l A6Ln_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+input data sets have equal lines
+sort -T . -k4,4g A6H_q20.genic_chr.size_w20.genic.depth.bg -o A6H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g A6Hn_q20.genic_chr.size_w20.genic.depth.bg -o A6Hn_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g A6L_q20.genic_chr.size_w20.genic.depth.bg -o A6L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g A6Ln_q20.genic_chr.size_w20.genic.depth.bg -o A6Ln_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+paste A6H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp A6Hn_q20.genic_chr.size_w20.genic.depth_scoresort.tmp A6L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp A6Ln_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1,$2,$3,($4+$8+$12+$16)/4}' OFS='	' > mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+wc -l mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1}' 
+sort -T . -k4,4g mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp -o mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp 
+bash -c 'paste <(sort -T . -k4,4g A6H_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > A6H_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g A6Hn_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > A6Hn_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g A6L_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > A6L_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g A6Ln_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_A6H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > A6Ln_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "A6H_q20.genic_chr.size_w20.genic.depth_qnorm.bg" 
+[2] "A6Hn_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[3] "A6L_q20.genic_chr.size_w20.genic.depth_qnorm.bg" 
+[4] "A6Ln_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+                                     sapply.bgs..getSD. sapply.sbgs..getSD.
+A6H_q20.genic_chr.size_w20.genic.bg            1.405036           104.88108
+A6Hn_q20.genic_chr.size_w20.genic.bg           6.367536            86.92324
+A6L_q20.genic_chr.size_w20.genic.bg            8.024834            60.17730
+A6Ln_q20.genic_chr.size_w20.genic.bg           7.606263            66.88045
+                                     sapply.qsbgs..getSD.
+A6H_q20.genic_chr.size_w20.genic.bg              78.60416
+A6Hn_q20.genic_chr.size_w20.genic.bg             78.60416
+A6L_q20.genic_chr.size_w20.genic.bg              78.60416
+A6Ln_q20.genic_chr.size_w20.genic.bg             78.60416
+                                                 l
+1  A6L_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 A6Ln_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+                                                 h
+1  A6H_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 A6Hn_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+paste A6L_q20.genic_chr.size_w20.genic.depth_qnorm.bg A6H_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > A6D_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+paste A6Ln_q20.genic_chr.size_w20.genic.depth_qnorm.bg A6Hn_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > A6Dn_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "A6D_q20.genic_chr.size_w20.genic.depth_qnorm.bg" 
+[2] "A6Dn_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+bedGraphToBigWig A6L_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt A6L_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig A6Ln_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt A6Ln_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig A6H_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt A6H_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig A6Hn_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt A6Hn_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig A6D_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt A6D_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig A6Dn_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt A6Dn_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+[1] "A6L_q20.genic_chr.size_w20.genic.depth_qnorm.bw" 
+[2] "A6Ln_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[3] "A6H_q20.genic_chr.size_w20.genic.depth_qnorm.bw" 
+[4] "A6Hn_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[5] "A6D_q20.genic_chr.size_w20.genic.depth_qnorm.bw" 
+[6] "A6Dn_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+          A6D    A6Dn
+all   67.6484 56.0900
+Chr01 72.9370 54.9345
+Chr02 74.2561 56.0900
+Chr03 70.1824 56.0898
+Chr04 67.6490 56.0900
+Chr05 65.4504 56.0900
+Chr06 65.4500 56.7501
+Chr07 64.2361 56.0910
+Chr08 62.0370 56.0900
+Chr09 62.3617 56.0901
+Chr10 63.5770 56.0910
+Chr11 64.2361 57.9640
+Chr12 62.3611 56.0900
+Chr13 63.7408 56.0900
+[1] "D1H_q20.genic.bed" "D1L_q20.genic.bed" "D2H_q20.genic.bed"
+[4] "D2L_q20.genic.bed" "DcH_q20.genic.bed" "DcL_q20.genic.bed"
+[1] "chr.size_w20.bed"
+[1] "chr.size_w20.genic.bed"
+bedtools intersect -sorted -c -b D1H_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > D1H_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b D1L_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > D1L_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b D2H_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > D2H_q20.genic_chr.size_w20.genic.bg 
+bedtools intersect -sorted -c -b D2L_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > D2L_q20.genic_chr.size_w20.genic.bg 
+***** WARNING: File D2H_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94681	94845	ST-E00243:210:HF5MKALXX:4:2110:21795:33938	42	+
+
+***** WARNING: File D1L_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94598	94764	ST-E00493:112:HF5W3ALXX:5:1218:18873:54119	42	+
+
+***** WARNING: File D1H_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94602	94726	ST-E00523:63:HFHKFALXX:7:1224:19258:10451	42	+
+
+***** WARNING: File D2L_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94569	94706	ST-E00494:124:HF3JHALXX:5:2117:2057:7866	42	-
+
+***** WARNING: File D2H_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94681	94845	ST-E00243:210:HF5MKALXX:4:2110:21795:33938	42	+
+
+bedtools intersect -sorted -c -b DcH_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > DcH_q20.genic_chr.size_w20.genic.bg 
+***** WARNING: File D1L_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94598	94764	ST-E00493:112:HF5W3ALXX:5:1218:18873:54119	42	+
+
+bedtools intersect -sorted -c -b DcL_q20.genic.bed -a chr.size_w20.genic.bed | awk '{print $1,$2  ,$3 ,$4* 1 }' OFS='\t' > DcL_q20.genic_chr.size_w20.genic.bg 
+***** WARNING: File D1H_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94602	94726	ST-E00523:63:HFHKFALXX:7:1224:19258:10451	42	+
+
+***** WARNING: File D2L_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94569	94706	ST-E00494:124:HF3JHALXX:5:2117:2057:7866	42	-
+
+***** WARNING: File DcH_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94602	94726	ST-E00523:63:HFHKFALXX:7:1224:19258:10451	42	+
+
+***** WARNING: File DcL_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94591	94763	ST-E00494:124:HF3JHALXX:4:2108:22739:44116	42	+
+
+***** WARNING: File DcH_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94602	94726	ST-E00523:63:HFHKFALXX:7:1224:19258:10451	42	+
+
+***** WARNING: File DcL_q20.genic.bed has a record where naming convention (leading zero) is inconsistent with other files:
+Chr10	94591	94763	ST-E00494:124:HF3JHALXX:4:2108:22739:44116	42	+
+
+[1] "D1H_q20.genic_chr.size_w20.genic.bg" "D1L_q20.genic_chr.size_w20.genic.bg"
+[3] "D2H_q20.genic_chr.size_w20.genic.bg" "D2L_q20.genic_chr.size_w20.genic.bg"
+[5] "DcH_q20.genic_chr.size_w20.genic.bg" "DcL_q20.genic_chr.size_w20.genic.bg"
+wc -l D1H_q20.genic.bed | awk '{print $1}' 
+wc -l D1L_q20.genic.bed | awk '{print $1}' 
+wc -l D2H_q20.genic.bed | awk '{print $1}' 
+wc -l D2L_q20.genic.bed | awk '{print $1}' 
+wc -l DcH_q20.genic.bed | awk '{print $1}' 
+wc -l DcL_q20.genic.bed | awk '{print $1}' 
+wc -l chr.size_w20.genic.bed | awk '{print $1}' 
+                                      readN   effSize   refSize
+D1H_q20.genic_chr.size_w20.genic.bg 6491770 158299180 163039260
+D1L_q20.genic_chr.size_w20.genic.bg 4247528 156619920 163039260
+D2H_q20.genic_chr.size_w20.genic.bg 4341096 151294060 163039260
+D2L_q20.genic_chr.size_w20.genic.bg 7424387 160427820 163039260
+DcH_q20.genic_chr.size_w20.genic.bg 8601372 159541500 163039260
+DcL_q20.genic_chr.size_w20.genic.bg 8459904 160763220 163039260
+awk '{print $1,$2  ,$3 ,$4* 24.3845946483008 }' OFS='	' D1H_q20.genic_chr.size_w20.genic.bg > D1H_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 36.8731930666496 }' OFS='	' D1L_q20.genic_chr.size_w20.genic.bg > D1L_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 34.8515812596635 }' OFS='	' D2H_q20.genic_chr.size_w20.genic.bg > D2H_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 21.6082243557616 }' OFS='	' D2L_q20.genic_chr.size_w20.genic.bg > D2L_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 18.5483780959596 }' OFS='	' DcH_q20.genic_chr.size_w20.genic.bg > DcH_q20.genic_chr.size_w20.genic.depth.bg 
+awk '{print $1,$2  ,$3 ,$4* 19.0029603172802 }' OFS='	' DcL_q20.genic_chr.size_w20.genic.bg > DcL_q20.genic_chr.size_w20.genic.depth.bg 
+wc -l D1H_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l D1L_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l D2H_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l D2L_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l DcH_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+wc -l DcL_q20.genic_chr.size_w20.genic.depth.bg | awk '{print $1}' 
+input data sets have equal lines
+sort -T . -k4,4g D1H_q20.genic_chr.size_w20.genic.depth.bg -o D1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g D1L_q20.genic_chr.size_w20.genic.depth.bg -o D1L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g D2H_q20.genic_chr.size_w20.genic.depth.bg -o D2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g D2L_q20.genic_chr.size_w20.genic.depth.bg -o D2L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g DcH_q20.genic_chr.size_w20.genic.depth.bg -o DcH_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+sort -T . -k4,4g DcL_q20.genic_chr.size_w20.genic.depth.bg -o DcL_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+paste D1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp D1L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp D2H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp D2L_q20.genic_chr.size_w20.genic.depth_scoresort.tmp DcH_q20.genic_chr.size_w20.genic.depth_scoresort.tmp DcL_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1,$2,$3,($4+$8+$12+$16+$20+$24)/6}' OFS='	' > mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp 
+wc -l mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp | awk '{print $1}' 
+sort -T . -k4,4g mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort.tmp -o mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp 
+bash -c 'paste <(sort -T . -k4,4g D1H_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > D1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g D1L_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > D1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g D2H_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > D2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g D2L_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > D2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g DcH_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > DcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+bash -c 'paste <(sort -T . -k4,4g DcL_q20.genic_chr.size_w20.genic.depth.bg ) <(sort -T . -k4,4g mean_D1H_q20.genic_chr.size_w20.genic.depth_scoresort_scoresort.tmp )' | awk '{print $1,$2,$3,$8}' OFS='	' | sort -T . -k1,1 -k2,3n > DcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "D1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[2] "D1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[3] "D2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[4] "D2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[5] "DcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[6] "DcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+                                    sapply.bgs..getSD. sapply.sbgs..getSD.
+D1H_q20.genic_chr.size_w20.genic.bg           3.681736            89.77765
+D1L_q20.genic_chr.size_w20.genic.bg           2.531006            93.32623
+D2H_q20.genic_chr.size_w20.genic.bg           2.779839            96.88175
+D2L_q20.genic_chr.size_w20.genic.bg           3.550253            76.71467
+DcH_q20.genic_chr.size_w20.genic.bg           4.469974            82.91079
+DcL_q20.genic_chr.size_w20.genic.bg           3.925412            74.59441
+                                    sapply.qsbgs..getSD.
+D1H_q20.genic_chr.size_w20.genic.bg             85.01321
+D1L_q20.genic_chr.size_w20.genic.bg             85.01321
+D2H_q20.genic_chr.size_w20.genic.bg             85.01321
+D2L_q20.genic_chr.size_w20.genic.bg             85.01321
+DcH_q20.genic_chr.size_w20.genic.bg             85.01321
+DcL_q20.genic_chr.size_w20.genic.bg             85.01321
+                                                l
+1 D1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 D2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+3 DcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+                                                h
+1 D1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+2 D2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+3 DcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg
+paste D1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg D1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > D1D_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+paste D2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg D2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > D2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+paste DcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg DcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg | awk '{print $1,$2,$3,$4-$8}' OFS='	' > DcD_q20.genic_chr.size_w20.genic.depth_qnorm.bg 
+[1] "D1D_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[2] "D2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+[3] "DcD_q20.genic_chr.size_w20.genic.depth_qnorm.bg"
+bedGraphToBigWig D1L_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt D1L_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig D2L_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt D2L_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig DcL_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt DcL_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig D1H_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt D1H_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig D2H_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt D2H_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig DcH_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt DcH_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig D1D_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt D1D_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig D2D_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt D2D_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+bedGraphToBigWig DcD_q20.genic_chr.size_w20.genic.depth_qnorm.bg chr.size.txt DcD_q20.genic_chr.size_w20.genic.depth_qnorm.bw 
+[1] "D1L_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[2] "D2L_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[3] "DcL_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[4] "D1H_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[5] "D2H_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[6] "DcH_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[7] "D1D_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[8] "D2D_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+[9] "DcD_q20.genic_chr.size_w20.genic.depth_qnorm.bw"
+           D1D     D2D     DcD
+all   72.89880 68.7720 68.7720
+Chr01 71.93900 71.4128 68.7722
+Chr02 71.93880 68.7720 68.7715
+Chr03 74.58000 68.6958 68.7713
+Chr04 72.89880 70.9790 68.7715
+Chr05 74.57990 68.7720 68.7720
+Chr06 74.58000 68.7720 68.7720
+Chr07 74.58000 68.7717 68.7722
+Chr08 68.77200 68.7719 68.7720
+Chr09 71.93970 68.7719 68.7720
+Chr10 71.86257 68.2619 68.7720
+Chr11 71.41270 68.7720 68.7720
+Chr12 70.97850 69.2340 68.8478
+Chr13 68.77170 68.5110 71.4885
+Warning messages:
+1: In library(tools) : package ‘tools’ already present in search()
+2: In library(tools) : package ‘tools’ already present in search()
+3: In library(tools) : package ‘tools’ already present in search()
+4: In library(tools) : package ‘tools’ already present in search()
+5: In library(tools) : package ‘tools’ already present in search()
+6: In library(tools) : package ‘tools’ already present in search()
+7: In library(tools) : package ‘tools’ already present in search()
+8: In library(tools) : package ‘tools’ already present in search()
+> 
+> # summarize MAD and plot
+> setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/")
+> # examine all MADs
+> fileL = paste0("iseg/",genomes,"_genic_MAD.txt")
+> res = data.frame(chr=c("all",1:13))
+> for(file in fileL)
++ {
++     x = read.table(file, header=TRUE,sep="\t")
++     if(nrow(x)>14){
++         y = cbind(x[1:14,],x[c(1,15:27),])
++         names(y) = paste(names(y), c(rep("A",ncol(x)),rep("D",ncol(x)) ) , sep=".")
++         res = cbind(res,y)
++     }else{
++         res = cbind(res,x)
++     }
++ }
+> res
+    chr   M1D.A   M2D.A   McD.A   M1D.D    M2D.D   McD.D   F2D.A    F3D.A
+all all 72.9670 69.2987 62.5987 72.9670 69.29870 62.5987 83.2980 85.59000
+A01   1 71.3301 67.3610 60.7440 69.0810 69.08100 62.3810 78.2555 75.57400
+A02   2 71.7100 67.6010 62.5983 67.5180 67.51800 60.7440 76.4230 83.29790
+A03   3 70.8010 67.3612 62.3061 68.5100 67.51800 60.8790 76.0319 79.82000
+A04   4 71.7100 67.3618 62.3062 67.5180 65.88080 60.4320 76.0320 79.82000
+A05   5 72.9680 69.0812 63.5570 73.7210 73.72100 66.0380 85.2030 85.26960
+A06   6 72.9670 67.6540 62.5986 72.0017 69.99020 61.8377 78.3230 79.82000
+A07   7 72.3630 67.3613 62.5983 70.9350 68.79000 60.8793 78.3230 79.82000
+A08   8 73.5650 67.3620 62.5984 73.5650 72.17870 64.0784 81.8197 81.81970
+A09   9 74.6870 69.3730 64.1611 75.2850 72.65470 66.2671 81.8197 81.81970
+A10  10 70.9360 67.3613 61.8377 69.0820 68.50970 60.7440 79.8200 76.74300
+A11  11 76.5420 72.4980 65.7990 74.8220 72.49907 64.5780 82.8760 83.29800
+A12  12 67.6540 68.3403 60.7970 72.4989 69.81390 62.5980 79.8200 80.97085
+A13  13 71.2280 70.9357 63.9440 74.2510 72.00202 65.1955 80.6510 82.87515
+      FcD.A    F2D.D   F3D.D    FcD.D     A6D    A6Dn     D1D     D2D     DcD
+all 76.4230 83.29800 85.5900 76.42300 88.5930 67.4440 92.3200 88.5580 85.1690
+A01 73.2648 83.29785 84.5701 76.84600 99.4633 64.0325 90.9232 85.1696 81.8902
+A02 75.5570 83.40100 86.7660 79.07000 94.4950 65.2670 88.2610 85.4130 84.1940
+A03 72.1920 83.29790 82.8750 74.41600 89.2170 64.0327 85.1690 84.7380 80.9130
+A04 72.0960 88.37500 89.4310 80.65040 86.0884 64.0326 88.2620 88.5580 84.6850
+A05 75.5924 83.29800 86.0830 78.32330 90.1442 70.8610 88.3140 85.1690 81.3970
+A06 72.0960 88.37500 88.3760 79.82000 82.3675 64.0326 97.5126 91.7040 88.2610
+A07 71.7685 89.51610 91.7220 82.14690 82.6715 64.0326 97.5126 92.3298 88.5580
+A08 73.2650 85.26960 87.9530 80.97085 84.8532 67.4490 93.9355 88.3140 85.5982
+A09 74.5180 87.93400 90.6659 82.14715 85.7844 69.3090 97.0294 94.3670 90.2990
+A10 72.0960 85.62490 85.6250 76.74325 79.5760 64.0320 85.4657 87.3386 81.1010
+A11 76.7430 85.16710 85.6248 76.01505 88.2830 71.1703 88.5580 87.6980 82.0240
+A12 72.0956 83.33390 83.2979 76.01600 82.9930 69.3090 88.3140 87.1536 81.0483
+A13 74.8460 88.37570 87.5620 80.54700 80.8110 69.3090 91.4068 91.7050 87.2060
+> pdf("iseg/sumMAD.genic.pdf")
+> cols = ifelse(grepl("^A|A$",names(res)[-1],),"pink","skyblue")
+> cols[grep("^A",names(res)[-1])]="red"
+> cols[grep("^D",names(res)[-1])]="blue"
+> boxplot(res[2:14,-1], las=2, col=cols)
+> boxplot(res[2:14,grep(".c|n",names(res))], las=2, col=cols[grep(".c|n",names(res)[-1])])
+> dev.off()
+null device 
+          1 
+> 
+> 
+> # summarize refSize and effSize
+> setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/")
+> # examine all MADs
+> fileL = paste0("iseg/",genomes,"_genic_par.txt")
+> par =list()
+> for(file in fileL)
++ {
++     x = read.table(file, header=TRUE,sep="\t")
++     perc = x$effSize/x$refSize
++     par[[file]]=perc
++ }
+> par
+$`iseg/AD1_genic_par.txt`
+[1] 0.9436714 0.9305839 0.9380195 0.9512840 0.9534947 0.9518700
+
+$`iseg/F1_genic_par.txt`
+[1] 0.9393804 0.9459817 0.9266885 0.9578681 0.9590609 0.9679698
+
+$`iseg/A2_genic_par.txt`
+[1] 0.6943024 0.9742916 0.9815515 0.9840109
+
+$`iseg/D5_genic_par.txt`
+[1] 0.9724248 0.9626505 0.9295072 0.9855780 0.9801221 0.9875618
+
+> 
+> q()
+> proc.time()
+     user    system   elapsed 
+41943.342  1213.345 22621.916 

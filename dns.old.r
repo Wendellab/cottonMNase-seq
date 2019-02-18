@@ -18,17 +18,8 @@ library(travis)
 options(threads=8)
 options(verbose=T)
 
-## Start analysis from mapping results: SAM
-sams=files("*.sam")
-
-## Define the path to chrom sizes file and sort it
-system("head -50 *H.sam|grep '@SQ'|awk -v OFS='\t' '{print $2,$3}'|sed 's/.N://g' > chr.size.txt")
-chromsizes="chr.size.txt"
-bedSort(chromsizes)
-
-## convert sam to bam,
-#  keeping alignments with quality >=20
-bams=samtoolsView(sams,minQual=20)
+## Start analysis from mapping results with quality >=20
+bams=files("*.q20.bam")
 
 ## convert bam to fragment bed files
 beds=bamToBed(bams,paired=T)

@@ -1,0 +1,77 @@
+## effective genomic size https://github.com/deeptools/deepTools/wiki/General-deepTools-FAQs
+# use faCount, little Ns in A2Du, noN size not right
+~/kent/faCount /work/LAS/jfw-lab/hugj2006/cottonLeaf/refGenomes/A2Du_13.fasta >/work/LAS/jfw-lab/hugj2006/cottonLeaf/refGenomes/A2Du_13.facount.txt
+~/kent/faCount /work/LAS/jfw-lab/hugj2006/cottonLeaf/refGenomes/Dgenome2_13.fasta >/work/LAS/jfw-lab/hugj2006/cottonLeaf/refGenomes/Dgenome2_13.facount.txt
+~/kent/faCount /work/LAS/jfw-lab/hugj2006/cottonLeaf/refGenomes/TM1new_26.fasta >/work/LAS/jfw-lab/hugj2006/cottonLeaf/refGenomes/TM1new_26.facount.txt
+# count non-zero bg windows
+library(data.table)
+getEffectiveRefSize.bg=function(bedGraphFile){
+    rpm <- fread(bedGraphFile, select = 4)$V4;
+    start <- fread(bedGraphFile, select = 2)$V2;
+    end <- fread(bedGraphFile, select = 3)$V3;
+    ts <- end-start
+    cs <- sum(ts[rpm!=0])
+    return(cs)
+}
+sapply(list.files("../../mappingF",pattern="Fc.*chr.size_w20.bg",full.name=T), getEffectiveRefSize.bg)
+# ../../mappingF/FcH_q20_chr.size_w20.bg ../../mappingF/FcL_q20_chr.size_w20.bg 
+#                            1,868,161,382                             1,878,118,078 
+sapply(list.files("../../mappingMnew",pattern="Mc.*chr.size_w20.bg",full.name=T), getEffectiveRefSize.bg)
+# ../../mappingMnew/McH_q20_chr.size_w20.bg ../../mappingMnew/McL_q20_chr.size_w20.bg
+#                            1,840,638,571                             1,836,608,320
+sapply(list.files("../../mappingD",pattern="Dc.*chr.size_w20.bg",full.name=T), getEffectiveRefSize.bg)
+#../../mappingD/DcH_q20_chr.size_w20.bg ../../mappingD/DcL_q20_chr.size_w20.bg
+#                             713,850,348                              716593377
+sapply(list.files("../../mappingA_new",pattern="n_q20_chr.size_w20.bg",full.name=T), getEffectiveRefSize.bg)
+# ../../mappingA_new/A6Hn_q20_chr.size_w20.bg ../../mappingA_new/A6Ln_q20_chr.size_w20.bg
+#                                 1154889827                     1167736467
+ 
+            
+------
+cd mappingF
+bamCoverage -b F2L_q20.bam -o F2L_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 1878118078
+bamCoverage -b F2L_q20.bam -o F2L_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 1878118078
+bamCoverage -b F2H_q20.bam -o F2H_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 1878118078
+bamCoverage -b F2H_q20.bam -o F2H_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 1878118078
+computeMatrix scale-regions -S *-*bw -R ../expNuc/F1.A.Q*bed -o scaleGeneBody.gz --regionBodyLength 3000 -b 1000 -a 1000 --skipZeros
+plotHeatmap -m scaleGeneBody.gz -out plotSizediff.A.png
+computeMatrix scale-regions -S *-*bw -R ../expNuc/F1.D.Q*bed -o scaleGeneBody.gz --regionBodyLength 3000 -b 1000 -a 1000 --skipZeros
+plotHeatmap -m scaleGeneBody.gz -out plotSizediff.D.png
+# F2L 142-200 77.7%, 0-141 21.2%, L should have lower portion of small fragment than H
+# F2H 142-200 68.1%, 0-141 30.6%
+~/kent/bigWigToBedGraph F2H_q20_0-141.bw F2H_q20_0-141.bg
+head F2H_q20_0-141.bg
+
+
+cd mappingMnew
+bamCoverage -b M1L_q20.bam -o M1L_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 1840638571
+bamCoverage -b M1L_q20.bam -o M1L_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 1840638571
+bamCoverage -b M1H_q20.bam -o M1H_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 1840638571
+bamCoverage -b M1H_q20.bam -o M1H_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 1840638571
+computeMatrix scale-regions -S *-*bw -R ../expNuc/AD1.A.Q*bed -o scaleGeneBody.gz --regionBodyLength 3000 -b 1000 -a 1000 --skipZeros
+plotHeatmap -m scaleGeneBody.gz -out plotSizediff.A.png
+computeMatrix scale-regions -S *-*bw -R ../expNuc/AD1.D.Q*bed -o scaleGeneBody.gz --regionBodyLength 3000 -b 1000 -a 1000 --skipZeros
+plotHeatmap -m scaleGeneBody.gz -out plotSizediff.D.png
+# M1L 142-200 72.2%, 0-141 26.8%, L should have lower portion of small fragment than H
+# M1H 142-200 50.4%, 0-141 49.6%
+
+cd ../mappingA_new/
+bamCoverage -b A6Ln_q20.bam -o A6Ln_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 1167736467
+bamCoverage -b A6Ln_q20.bam -o A6Ln_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 1167736467
+bamCoverage -b A6Hn_q20.bam -o A6Hn_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 1167736467
+bamCoverage -b A6Hn_q20.bam -o A6Hn_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 1167736467
+computeMatrix scale-regions -S *-*bw -R ../expNuc/A2.Q*bed -o scaleGeneBody.gz --regionBodyLength 3000 -b 1000 -a 1000 --skipZeros
+plotHeatmap -m scaleGeneBody.gz -out plotSizediff.png
+# A6Ln 142-200 66.4%, 0-141 30.4%, L should have lower portion of small fragment than H
+# A6Hn 142-200 53.6%, 0-141 44.9%
+
+cd ../mappingD/
+bamCoverage -b D1L_q20.bam -o D1L_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 716593377
+bamCoverage -b D1L_q20.bam -o D1L_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 716593377
+bamCoverage -b D1H_q20.bam -o D1H_q20_142-200.bw --binSize 20 --minFragmentLength 142 --maxFragmentLength 200 --normalizeTo1x 716593377
+bamCoverage -b D1H_q20.bam -o D1H_q20_0-141.bw --binSize 20 --minFragmentLength 0 --maxFragmentLength 141 --normalizeTo1x 716593377
+computeMatrix scale-regions -S *-*bw -R ../expNuc/D5.Q*bed -o scaleGeneBody.gz --regionBodyLength 3000 -b 1000 -a 1000 --skipZeros
+plotHeatmap -m scaleGeneBody.gz -out plotSizediff.png
+# D1L 142-200 66.7%, 0-141 32.5%, L should have lower portion of small fragment than H
+# D1H 142-200 58.7%, 0-141 40.5%
+# IGV shows no apparent difference in read distribution of different size range

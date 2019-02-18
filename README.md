@@ -15,12 +15,13 @@ To investigate differential regulatory control of duplicated genes (*aka* homoeo
 ## Data analysis:
 
 - [Summary](dataAnalysis.md)
-- [Analysis of MNase-seq]
-- [Analysis of RNA-seq]
+- [MNase-seq processing](DA_diffMNase-seq.md)
+- [RNA-seq processing](DA_RNAseq.md)
+- [External datasets: ChIP-seq, DNase-seq, etc.](DA_otherDatasets.md)
 - homoeolog/ortholog group
 - Prediction of nucleosome positioning
 - Bioinformatic prediction of cis elements and regions
-- Other datasets
+- Other layering datasets, e.g. Hi-C, DNA fragility, etc.
 
 ## Scripts
 
@@ -33,8 +34,8 @@ To investigate differential regulatory control of duplicated genes (*aka* homoeo
 
 ## Manuscript preparation
 
-- Introduction: [introduction](introduction.md)
-- Materials and Methods: [methods.md](methods.md)
-- Results: [results.md](results.md)
+- [Introduction](introduction.md): to be written
+- [Materials and Methods](methods.md): ongoing
+- Results: [outline](results.md); [preliminary results](results_preliminary.md)
 - Discussions:
 

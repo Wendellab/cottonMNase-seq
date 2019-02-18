@@ -23,44 +23,90 @@ For both MNase-seq and RNA-seq experiments, mature leaf tissue was harvested fro
     mkdir refTranscriptomes
     cd refTranscriptomes
     module load bowtie2
+    
     ### D5_JGI - Paterson et al. 2012 Nature
-    ln -s ~/jfw-lab/Projects/Eflen/seed_for_eflen_paper/bowtie2hylite/D5.transcripts* .
-    # see: https://github.com/huguanjing/homoeologGeneExpression-Coexpression/blob/master/bowtie2hylite.sh
+    cp /lss/research/jfw-lab/GenomicResources/archived_resources/gmapdb/D5/Dgenome2_13.cds.fasta >D5.transcripts.fasta
+    grep -c '>' D5.transcripts.fasta
+    # 37223
+    # or see: https://github.com/huguanjing/homoeologGeneExpression-Coexpression/blob/master/bowtie2hylite.sh
+        
+    ### AD1_458 - Saski et al, 2017
+    zcat /lss/research/jfw-lab/GenomicResources/archived_resources/AD1Saski/annotation/Ghirsutum_458_v1.1.transcript_primaryTranscriptOnly.fa.gz >TM1new.transcripts.fasta
+    grep -c '>' TM1new.transcripts.fasta
+    # 66577
     
+    ### A2Du2018 - Du et al, 2018 
+    zcat  /lss/research/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Du2018/1.PacBio-Gar-Assembly-v1.0/G.arboreum.Chr.v1.0.cds.v1.0.fasta.gz >A2du.transcripts.fasta
+    grep -c '>' A2du.transcripts.fasta
+    # 40960
     
-    ### A2_BGI - Li et al. 2014 Nature Genetics
-    ln -s ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Li/
-    ### AD1_NBI - Zhang et al, 2016 Nature biotechnology
-    ln -s ~/jfw-lab/GenomicResources/archived_resources/gmapdb/AD1TM1/TM1.fasta
-    grep -n '>scaffold' TM1.fasta |head -10   #32244283:>scaffold27_A01
-    head -32244282 TM1.fasta >TM1_26.fasta 
-    ### make my own ref for A2xD5
-    cat A2genome_13.fasta Dgenome2_13.fasta >F1_26t.fasta
-    grep '>' F1_26t.fasta 
-    sed 's/>Chr/>D5_chr/g' F1_26t.fasta >F1_26.fasta
-    grep '>' F1_26.fasta
-    rm F1_26t.fasta
-    
-    ### AD1_458 - Saski et al, 2017 (in revision)
-    ln -s ~/jfw-lab/GenomicResources/archived_resources/AD1Saski/v1.1/assembly/Ghirsutum_458_v1.0.fa.gz
-    zcat Ghirsutum_458_v1.0.fa.gz |grep -n '>scaffold'|head -10 
-    # 27134894:>scaffold_27
-    zcat Ghirsutum_458_v1.0.fa.gz |head -27134893 >TM1new_26.fasta 
-    
-    # build bowtie2 ref
-    bowtie2-build TM1_26.fasta TM1
-    bowtie2-build TM1new_26.fasta TM1new
-    bowtie2-build F1_26.fasta F1
-    bowtie2-build A2genome_13.fasta A2
-    bowtie2-build Dgenome2_13.fasta D5
+    ### A2Du + D5 as ref for A2xD5
+    cat A2du.transcripts.fasta D5.transcripts.transcripts.fa >F1.transcripts.fasta
 
+    # build rsem-bowtie2 ref
+    rsem-prepare-reference D5.transcripts.fasta --bowtie2 D5.transcripts
+    rsem-prepare-reference TM1new.transcripts.fasta --bowtie2 TM1new.transcripts
+    rsem-prepare-reference F1.transcripts.fasta --bowtie2 F1.transcripts
+    rsem-prepare-reference A2du.transcripts.fasta --bowtie2 A2du.transcripts
+
+In addition to mapping and expression analysis based on genome-specific transcript, I used the D5 reference transcriptomes based on SNPs 4.0 and 4.1.
+
+    ls /lss/research/jfw-lab/GenomicResources/pseudogenomes/
+    more /lss/research/jfw-lab/GenomicResources/pseudogenomes/README.txt 
+    # for diploids and F1
+    grep -c ">" /lss/research/jfw-lab/GenomicResources/pseudogenomes/A2D5.transcripts.fa
+    # 74446
+    grep -c ">" /lss/research/jfw-lab/GenomicResources/pseudogenomes/AtDt.transcripts.fa
+    # 74446
+
+     
 ### Bowtie2-RSEM mapping
 
-    bash runBowtie2.D.sh >runBowtie2.D.071417.txt 2>&1
-    
+    bash runBowtie2.D.sh >runBowtie2.D.101318.txt 2>&1
+    bash runBowtie2.A.sh >runBowtie2.A.101318.txt 2>&1
+    bash runBowtie2.F1.sh >runBowtie2.F1.101318.txt 2>&1
+    bash runBowtie2.AD1.sh >runBowtie2.AD1.101218.txt 2>&1
+    bash runBowtie2.Dref.sh >runBowtie2.Dref.101918.txt 2>&1
 
-????why does bowtie2 mapping rate so low???
+Mapping rate using D5 reference transcriptomes based on SNPs 4.0 and 4.1.
+
+    grep 'overall alignment rate' /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/*log
+    `/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-A2-S1.log:65.09% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-A2-S4.log:67.49% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-A2-S5.log:67.59% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-A2xD5-S1.log:71.99% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-A2xD5-S2.log:71.35% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-A2xD5-S3.log:66.41% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-D5-S1.log:73.73% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-D5-S2.log:70.11% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-D5-S3.log:76.26% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-Maxxa-S1.log:69.34% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-Maxxa-S2.log:69.72% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/SD5-Maxxa-S3.log:66.70% overall alignment rate`
+   
+Mapping rate using individual reference transcriptomes.
+
+    grep 'overall alignment rate' /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingIndiv/*log
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-A2-S1.log:50.49% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-A2-S4.log:52.25% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-A2-S5.log:53.11% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-A2xD5-S1.log:74.01% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-A2xD5-S2.log:73.17% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-A2xD5-S3.log:67.97% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-D5-S1.log:47.99% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-D5-S2.log:51.41% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-D5-S3.log:53.56% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-Maxxa-S1.log:78.32% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-Maxxa-S2.log:78.86% overall alignment rate
+    /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-Maxxa-S3.log:75.40% overall alignment rate
+
 
 ## Expression profile of gene sets
 
+The r code [expTests.r](expTests.r) performs following:
 
+* collect rsem count and rpkm results
+* differential expression analysis
+* cis-trans analysis
+* impact of genome evolution: Hr, Pr, Wr
+* expression dominance analyisis

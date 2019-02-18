@@ -1,36 +1,4 @@
- # Results
-
-**Outline**
-    
-- General description of MNase digestion and sequencing results: 
-    - heavy and light digestion (gel image)
-    - isolation and sequencing of nucleosomal DNA (size density plot)
-    - mapping percentages using different reference genomes
-    - coverage of genomic regions
-    - two biological and technical replicates, how reproducible
-    - size ranges 0-130 vs 130-160
-- Examination of Nucleosomal OCcupancy (NOC) score and nucleosome center (dyads) positioning profiles
-    - around genetic feature TSS and TTS (-1.5~1.5 kb)
-        - for three size ranges: full, 0-130, 130-160
-        - heavy and light using both replicates 
-        - binned by expression percentiles.
-- Linear model for explaining expression levels based nucleosome occupancy: to what extent can flanking regions of TSS and TTS predict expression levels? What about expression divergence between homoeologs?
-- Intrinsic sequence properties  
-    - GC content - correlation with NOC for 150bp nucleosome -sized region, do some random sampling (like 1-5% of genome) 
-    - what about correlation with sequence predicted NOC
-- Discovery of TFBS motifs
-    - all possible 6-mer motifs (4^6= 4096): generate normalized NOC for 200bp region, is there negative correlation between GC content and NOC? how to detect 6-mer motifs with significantly lower NOC? Does it matter where to look at, promoter, distal, gene body?
-    - scan for motifs in MSF and MRF with MEME and HOMER
-- Examination of raw iSeg output
-    1. 3 biological cutoffs (1,2,3) x 13/26 chromosomes Tables: number of a/+/- segments, region of segments.
-    1. Distribution plots of segment width and ??significance
-    1. Segment location: distal promoter (1-0.5 upstream of TSS), proximal promoter (500bp upstream of TSS), 5′ untranslated region (5′ UTR), CDS (coding sequences), intron, 3′ UTR, and TTS 3′ (500 bp downstream from TTS) regions.   
-
-    
-
-    
-
----
+# Preliminary results
 
 ## Assessment of data quality
 
