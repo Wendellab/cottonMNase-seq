@@ -1,12 +1,13 @@
 # Processing of cotton MNase-seq datasets
----
 
 **Outline** 
 
-1. [Dns-MNase-seq data preprocessing](#)
-2. [Read mapping and quality control](##2.-Read-mapping-and-quality-control)
-3. [Differential nuclease sensitivity profiling analysis]()
+1. [Dns-MNase-seq data preprocessing](#1-dns-MNase-seq-data-preprocessing)
+2. [Read mapping and quality control](#2-read-mapping-and-quality-control)
+3. [Differential nuclease sensitivity profiling analysis](#3-differentia-nuclease-sensitivity-profiling-analysis)
 4. [Nucleosome positioning analysis](DA_diffMNase-seq##4.-Nucleosome-positioning-analysis)
+
+---
 
 ## 1. Dns-MNase-seq data preprocessing
 
@@ -101,7 +102,7 @@ Now build bowtie reference
     bowtie2-build Dgenome2_13.fasta D5
     bowtie2-build A2Du_26.fasta A2Du
 
-## 2.Read mapping and quality control
+## 2. Read mapping and quality control
 
 ### 2.1 Bowtie2 mapping
 Default setting `-k 1` report 1 alignment for each read/pair) should work, while some might need to be modified as required by downstream tools.
