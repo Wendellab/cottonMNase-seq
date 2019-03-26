@@ -5,17 +5,23 @@
 # 2. plot coverage profile and heatmap over TSS
 # 3. annotate genomic location of segments with nearby genes.
 
+# mkdir SegAnnotation
+# cd SegAnnotation
+# module load r-udunits2
+# module load r/3.5.0-py2-ufvuwmm
+# R
+
 # Load libraries
 library(GenomicFeatures)
 library(ChIPseeker) # module load r-udunits2
 library(data.table)
 
 ## Load data
-sampleInfo = data.frame( file= list.files("iseg",pattern="6.0_Fus.bed",full.names =T),
+sampleInfo = data.frame( file= list.files("../isegv1.3.2",pattern="bc6.0.Fus.bed",full.names =T),
 genome = c("A2", "D5","F1","AD1"),
-txDB =  list.files("refGenomes",pattern="txdb",full.names =T),
+txDB =  list.files("../refGenomes",pattern="txdb",full.names =T),
 subgenome =c(1,1,2,2),
-bigwig= list.files("iseg", pattern="bg",full.names =T))
+bigwig= list.files("../iseg", pattern="bg",full.names =T)[1:4])
 # print info
 sampleInfo
 
@@ -25,13 +31,11 @@ for(i in 1:4)
     print(sampleInfo[i,])
 
     filePath = as.character(sampleInfo$file[i])
-    pdf(gsub("_.*","_plotAnno.pdf",filePath))
+    pdf(gsub(".*/","",gsub("_.*","_plotAnno.pdf",filePath)))
     
     # read peaks
     gr = readPeakFile(filePath)
-    gr$height = fread(gsub(".bed",".txt",filePath),sep=" ",select=4)$V4
-    gr$height.abs = abs(gr$height)
-    gr$V4 = ifelse(gr$height>0, "MSF","MRF")
+    gr$V4 = ifelse(gr$V9=="20,20,255", "MSF","MRF")
     grl = split(gr, gr$V4)
     
     # Plot covplot - sample top 1% for visualization, otherwise completely satuated
@@ -82,7 +86,7 @@ for(i in 1:4)
 
 }
 ls(pattern="peakAnnoList.")
-save(list=c("sampleInfo", ls(pattern="peakAnnoList.")), file="iseg/genomicAnnotation.rdata")
+save(list=c("sampleInfo", ls(pattern="peakAnnoList.")), file="genomicAnnotation.rdata")
 
 ## annotation list content
 names(peakAnnoList.AD1)  # MSF.A, MSF.D, MRF.A, MRF.D

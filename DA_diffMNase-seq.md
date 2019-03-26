@@ -1,24 +1,24 @@
-# Data analysis of cotton MNase-seq datasets
+# Processing of cotton MNase-seq datasets
 ---
 
-Outline: 
+**Outline** 
 
-* Process reads: quality filter and trimming
-* Map reads: mapping rates, check consistency acorss libraries
-* Generate and compare genomic coverage profiles: nucleosome occupancy (heavy & light), nuclease sensitivity (Light-heavy), nucleosome dycad positioning
-* Peak calling from nuclease sensitivity profile to infer potential regulatory regions
-* Investigate the genomic/genetic location of peaks, correlation with expression, etc. 
+1. [Dns-MNase-seq data preprocessing](#)
+2. [Read mapping and quality control](##2.-Read-mapping-and-quality-control)
+3. [Differential nuclease sensitivity profiling analysis]()
+4. [Nucleosome positioning analysis](DA_diffMNase-seq##4.-Nucleosome-positioning-analysis)
 
-## 1. Preprocessing of DNA sequencing datasets
+## 1. Dns-MNase-seq data preprocessing
 
 ### MNase-seq datasets
 Short-read data will be deposited in the NCBI short read archive ([SRP??????](http://trace.ddbj.nig.ac.jp/DRASearch/study?acc=SRP??????)), also as Biobroject [PRJNA??????](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA??????).
 
 Paired-end reads of 16 samples: 4 species (A2, D5, A2xD5, Maxxa) X 2 digestive conditions (Heavy and Light) X 2 technical reps.
 
-    cd cottonLeaf/rawfastq
-    ln -s ~/jfw-lab/RawData/HGJ_leafMNase-seq/WTNHHW163125/Feb2017/*gz .
-    ln -s ~/jfw-lab/RawData/HGJ_leafMNase-seq/WTNHHW163125/Feb2018/*gz .
+    cd /work/LAS/jfw-lab/hugj2006/cottonLeaf/
+    cd rawfastq
+    ln -s /lss/research/jfw-lab/RawData/HGJ_leafMNase-seq/WTNHHW163125/Feb2017/*gz .
+    ln -s /lss/research/jfw-lab/RawData/HGJ_leafMNase-seq/WTNHHW163125/Feb2018/*gz .
 
 #### Checking read quality with [FastQC](http://www.bioinformatics.bbsrc.ac.uk/projects/fastqc/)
     cd ..
@@ -137,15 +137,18 @@ Bowtie2 mapping results in `SAM` format were converted to `BAM` with a quality f
 08/07/18: Command can be ran on biocrunch2 and speedy, but not biocrunch:
 
     module load py-deeptools
+    cd /work/LAS/jfw-lab/hugj2006/cottonLeaf/mappingD
     # input bams need to be sorted and index
     plotCoverage -b *q20.bam -o plotCoverage.pdf --ignoreDuplicates --minMappingQuality 20
     bamPEFragmentSize -b *q20.bam -hist plotPEFragmentSize.png
     
-
     multiBamSummary bins -b *q20.bam -out mapping.results.npz --outRawCounts mapping.results.tab
     head mapping.results.tab
     plotCorrelation -in mapping.results.npz -o plotHeatmap_pearson.pdf --corMethod pearson --skipZeros --removeOutliers --whatToPlot heatmap --colorMap RdYlBu --plotNumbers --outFileCorMatrix plotHeatmap_pearson.tab.txt
     plotPCA -in mapping.results.npz -o plotPCA.pdf -T "PCA of mapping profiles"
+    mkdir mappingQC
+    mv plot* mappingQC/
+    mv mapping* mappingQC/
 
 If good correlations are seen between replicates, we will combind replicates in following analysis.
 
@@ -157,168 +160,55 @@ Quality filtered `BAM` results will be converted to `BED` format, e.g.
 
 For both heavy and light digestions (e.g. `D1H_q20.bed`, `D2H_q20.bed`), a combo `BED` file (`DcH_q20.bed`) will be made by merging equal amount of mapped fragments from replicates. 
 
-See wrapper r script [repBam2Bed.r](repBam2Bed.r).
+See wrapper r script [repBam2Bed.r](Scripts/repBam2Bed.r).
 
 ## 3.Differential nuclease sensitivity profiling analysis
 
+### 3.0 Differential analysis of light and heavy nucleosomal profiles
+
+Originally, each `BED` file (individual replicate, not pooled) was parsed into two fragment size ranges, 0-130bp and 130-260bp. Genome coverage was next calculated in RPM for Light, heavy and difference of Light-Heavy digestive conditions at each range, the resulted `BedGraph` files were compressed to `BigWig` files. The idea is that different sized fragments respond to digestion conditions differently, and it was suggested that small fragments by light digestion is comparable to DNase-seq profiles. I may further explore this direction later, based upon [dns.old.r](Scripts/dns.old.r).
+
+
 ### 3.1 Segmentation of sensitive and resistant fragments
 
-The algorithm [iSeg](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2140-3) ([web server](http://lebesgue.fgcu.edu/iSeg)) identifies candidate segments from normalized differential genome coverage - [latest source v180809b]().
+The algorithm [iSeg](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2140-3) ([web server](http://lebesgue.fgcu.edu/iSeg)) identifies candidate segments from normalized differential genome coverage - [latest source v190207, v1.3.2](http://lebesgue.fgcu.edu/iSeg/downloads.html).
 
-First, input files for iSeg need to be prepared from BED files, including individual and pooled runs, using script [iseg.pre.r](iseg.pre.r). The coverage of Heavy and Light digested reads were estimated and quantile normalized across 20 bp windows tilling the genome, to generate DNS (D = L - H) profiles. Once BedGrapgh files (e.g. `A6D_q20_chr.size_w20_qnorm.bg`) are ready, inspect their MAD and SD values across genome.
+First, input files for iSeg need to be prepared from BED files, including individual and pooled runs, using script [iseg.pre.r](Scripts/iseg.pre.r). The coverage of Heavy and Light digested reads were estimated and quantile normalized across 20 bp windows tilling the genome, to generate DNS (D = L - H) profiles. Once BedGrapgh files (e.g. `A6D_q20_chr.size_w20_qnorm.bg`) are ready, inspect their MAD and SD values across genome. The BigWig files were inspected with IGV, and an issue of [mitochondria DNA insertion into D5 chr01](Discussion/mtInsertionD5.docx) was discussed.
 
-Noting the differences in MAD between genomes (see "sumMDS.txt"), quantile normalization was performed for pooled D profiles ("sumMDS_quantile.txt"), and then subjected to iSeg analysis, using script [iseg.run.r](iseg.run.r). The example commands of iSeg are:
+Noting the differences in MAD between genomes (see "sumMDS.txt"), quantile normalization was performed for pooled D profiles ("sumMDS_quantile.txt"), and then subjected to iSeg analysis, using script [iseg.run.r](Scripts/iseg.run.r). The example commands of iSeg are:
 
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 13 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/A6Dn_q20_chr.size_w20_qnorm_qnorm.bg -of A6Dn >iseg/A6Dn.manifest.txt
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 13 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/DcD_q20_chr.size_w20_qnorm_qnorm.bg -of DcD >iseg/DcD.manifest.txt
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 26 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/FcD_q20_chr.size_w20_qnorm_qnorm.bg -of FcD >iseg/FcD.manifest.txt
-    ~/iSegv180809b/build/iSeg -cz -ctp -nc 26 -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/McD_q20_chr.size_w20_qnorm_qnorm.bg -of McD >iseg/McD.manifest.txt
+    ~/iSegv190207/iSeg -cz -ctp -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/A6Dn_q20_chr.size_w20_qnorm_qnorm.bg -of A6Dn >isegv1.3.2/A6Dn.manifest.txt
+    ~/iSegv190207/iSeg -cz -ctp -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/DcD_q20_chr.size_w20_qnorm_qnorm.bg -of DcD >isegv1.3.2/DcD.manifest.txt
+    ~/iSegv190207/iSeg -cz -ctp -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/FcD_q20_chr.size_w20_qnorm_qnorm.bg -of FcD >isegv1.3.2/FcD.manifest.txt
+    ~/iSegv190207/iSeg -cz -ctp -bc 1.0-2.0-3.0 -minwl 10 -maxwl 100 -d iseg/McD_q20_chr.size_w20_qnorm_qnorm.bg -of McD >isegv1.3.2/McD.manifest.txt
 
-The raw segmentation output file contains 6 columns: chr, start, end, height, t-stat, p-value. Use script [iseg.summary.r](iseg.summary.r) to generate some summary plots, including the number, size and distribution of detected segments. This can also be done using the iSeg python wrapper version.
+The raw segmentation output file contains 6 columns: chr, start, end, height, t-stat, p-value. Use script [iseg.summary.r](Scripts/iseg.summary.r) to generate some summary plots, including the number, size and distribution of detected segments, and output BED format. This can also be done using the iSeg python wrapper version.
+
+**Summary**: IGV visualization of BED outputs revealed consistent segmentation profiles between v1.3.2 to v180809b; [iSegSummary021119.xlsx](iSegSummary021119.xlsx) showed that BC6 produced 1% of MSFs and MRFs each, will be used for following analysis. 
  
 ### 3.2 Genomic annotation of segments
 
-Use ChIPseeker for peak annotation with [segAnno.r](segAnno.r): 
+Use ChIPseeker for peak annotation with [segAnno.r](Scripts/segAnno.r): 
 
 1. visualizing segment locations on chromosomes
 2. plot coverage profile and heatmap over TSS
 3. annotate genomic location of segments with nearby genes.
 
-### 3.3 Integrated analysis with RNA-seq data
-
-See [DA_RNAseq.md](DA_RNAseq.md) for processing RNA-seq data. Following analysis were conducted with [expNuc.r](expNuc.r):
-
-1. inspect H, L and D profiles around TSS and TTS in association with expression quantiles in each species
-2. Inspect 
-inspect the presence of MSFs in 1kb promoter region, 
-[]()
-  
-### 3.3 Fuctional annotation
-### 3.4 Motif
-
----
-
-Bowtie2 mapping results in `SAM` format were converted to `BAM` with a quality filter >=20, and then further converted to `BED` format. Each `BED` file was parsed into two fragment size ranges, 0-130bp and 130-260bp. Genome coverage was next calculated in RPM for Light, heavy and difference of Light-Heavy digestive conditions at each range, the resulted `BedGraph` files were compressed to `BigWig` files.
-
-See pipeline scripts in [dns.r](dns.r).
-
-Taking sample **A6** for example, by inputing mapping results of its heavy and light MNase-seq data - `A6H.sam` & `A6L.sam`, output results include:
-
-* Reference chromosome sizes: `chr.size.txt`
-* Density plot of mapped fragment sizes: `sizeDistribution.pdf`
-* BAM files: `A6H_q20.bam` & `A6L_q20.bam`
-* BED files: `A6H_q20.bed` & `A6L_q20.bed`
-* BED files parsed by size range: `A6H_q20_000-130.bed`, `A6H_q20_130-260.bed`, `A6L_q20_000-130.bed`, `A6L_q20_130-260.bed`
-* BedGrapgh files of genome coverage: `A6H_q20_unified.bg`,`A6L_q20_unified.bg`,`A6D_q20_unified.bg`; `A6H_q20_000-130_unified.bg`, `A6L_q20_000-130_unified.bg`, `A6D_q20_000-130_unified.bg`;  `A6H_q20_130-260_unified.bg`,  `A6L_q20_130-260_unified.bg`, `A6D_q20_130-260_unified.bg`. 
-* BigWig files:  `A6H_q20_unified.bw`, `A6L_q20_unified.bw`, `A6D_q20.bw_unified`; `A6H_q20_000-130_unified.bw`, `A6L_q20_000-130_unified.bw`, `A6D_q20_000-130_unified.bw`;  `A6H_q20_130-260_unified.bw`,  `A6L_q20_130-260_unified.bw`, `A6D_q20_130-260_unified.bw`. 
-
----
-Next, 
-
-    library(GenomicFeatures)
-    library(genomation)
-    txdb <- loadDb("refGenomes/txdb.TM1saski.sqlite")
-    TSS = promoters(txdb, upstream=1000, downstream=1000)
-    bw.files<-list.files("mappingMnew", pattern="..D.*w20_qnorm.bw",full.names=TRUE)
-    sml = ScoreMatrixList(target = bw.files, windows = TSS, type="bigWig",strand.aware=TRUE)
+### 3.3 Motif discovery and fuctional annotation of segements
 
 
- 
+## 4. Nucleosome positioning analysis
 
+### 4.1 Nucleosome calling and classification
 
+Bowtie2 mapping results in `BED` with a quality filter >=20, were first filtered to remove extra long reads over 260bp, and then trimmed fragments to 50 bp around nucleosome dyad. After read pre-processing, genome coverage was calculated in RPM for each digestive condition and each rep. Fast Fourier Transform (FFT) was applied to filter noise for coverage profile prior to peak detection of nucleosome positioning. Well and loosely positioned nucleosomes were characterized. [nucleR.r](Scripts/nucleR.r)
 
+Nucleosome repeat length was calculated and compared between genomes. [NRL.r](Scripts/NRL.r)
 
-### (TBM) Nucleosome calling and classification
-Bowtie2 mapping results in `BED` with a quality filter >=20, were first filtered to remove extra long reads over 260bp, and then trimmed fragments to 50 bp around nucleosome dyad. After read pre-processing, genome coverage was calculated in RPM for each digestive condition and each rep. Fast Fourier Transform (FFT) was applied to filter noise for coverage profile prior to peak detection of nucleosome positioning. Well and loosely positioned nucleosomes were characterized.
+What percentage of genome are covered by well-positioned and fuzzy nucleosomes? [nucleR.post.r](Scripts/nucleR.post.r)
 
-See pipeline scripts in [nucleR.r](nucleR.r).
+### 4.2 Other potential analysis
 
-Taking sample **A6H** for example, by inputing quality filtered mapping results  - `A6H_q20.bed`, output results include:
-* Plot mapping depth by chromosomeL: `A6H_q20.checkRawDepth.pdf`
-* BigWig file: `A6H_q20.coverage.bw`
-* GFF file of nucleosome position: `A6H_q20.nucleosome.gff`
+[NucTools](https://homeveg.github.io/nuctools/) used replicates instead of peak shape by [nucleR](http://bioconductor.org/packages/release/bioc/html/nucleR.html) to distinguish stable and fuzzy nucleosomes. [DANPOS2](https://sites.google.com/site/danposdoc/) provides tool for calculating nucleosome occupancy change scores between conditions. [NUCwave](http://nucleosome.usal.es/nucwave/)is a wavelet-based bioinformatic tool that generates nucleosome occupation maps.
 
-## 3.Downsteam analysis
-
-Visualization and exploration of sequencing tracks (`BigWig`) around genomic features (e.g. TSS) is the key of downstream analysis. Many tools are availble and reviewed in a biostars thread [here](https://www.biostars.org/p/180314/):
-
-* [Deeptools](http://deeptools.readthedocs.io/en/latest/index.html) - faster than R packages, waiting for bioIT to install
-* [SeqPlots](http://przemol.github.io/seqplots/) - corresponding genomic packages are required from bioconductor, useless for cotton, shame
-* [Genomation](https://bioconductor.org/packages/release/bioc/html/genomation.html) - R package
-* [ngsplot](https://github.com/shenlab-sinai/ngsplot)
-
-
-
-### Check sequencing coverage, fragment size, etc.
-Two plots were generated. The first one simply represents the frequencies of the found read coverages, which helps you judge how relevant the mean coverage value (printed next to the sample name) is. If the distribution of read coverages is more or less homoskedatic and, ideally, normally distributed (most likely it won’t be), then the mean is a very appropriate proxy for sequencing depth. The second plot shows what is the fraction of the genome that has a certain depth. 
-
-    plotCoverage -b *sort.bam -o plotCoverage.pdf --ignoreDuplicates --minMappingQuality 20
-
-For paired-end samples, we often additionally check whether the fragment sizes are more or less what we would expected based on the library preparation.
-
-    bamPEFragmentSize -b *sort.bam -hist plotPEFragmentSize.png
-    
-### Visualize nucleosome occupancy coverage on genomic features
-
-First, need to prepare genomic feature `bed` file:
-
-    # 08/07/18 module bedops no longer supported, run gff2bed locally
-    cd mappingD
-    head ~/jfw-lab/GenomicResources/archived_resources/gmapdb/D5/Dgenome2_13.gene.gff
-    gff2bed < ~/jfw-lab/GenomicResources/archived_resources/gmapdb/D5/Dgenome2_13.gene.gff >D5.gene.bed
-    cd ..
-    
-    cd mappingM
-    head ~/jfw-lab/GenomicResources/archived_resources/gmapdb/AD1TM1/Gossypium_hirsutum_v1.1.gene.gff3
-    gff2bed < <(grep 'gene' ~/jfw-lab/GenomicResources/archived_resources/gmapdb/AD1TM1/Gossypium_hirsutum_v1.1.gene.gff3) > TM1.gene.bed
-    grep '^A' TM1.gene.bed >TM1.gene.A.bed
-    grep '^D' TM1.gene.bed >TM1.gene.D.bed
-    cd ..
-    
-    cd mappingMnew
-    zcat ~/jfw-lab/GenomicResources/archived_resources/AD1Saski/annotation/Ghirsutum_458_v1.1.gene_exons.gff3.gz |head
-    
-    cd mappingA
-    head ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Li/A2Li.exons.gff
-    gff2bed < <(grep "mRNA" ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Li/A2Li.gene.gff) > A2.gene.bed
-    cd ..
- 
-    cd mappingAnew
-    head ~/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Du2018/1.PacBio-Gar-Assembly-v1.0/G.arboreum.Chr.v1.0.gff
-    gff2bed < <(grep "mRNA" G.arboreum.Chr.v1.0.gff) > A2.gene.bed
-    cd ..
-    
-    cd mappingF
-    cat mappingA/A2.gene.bed <(sed 's/^Chr/D5_chr/g' mappingDref/mappingD/D5.gene.bed) >F.gene.bed
-    grep '^A' F.gene.bed >F.gene.A.bed
-    grep '^D' F.gene.bed >F.gene.D.bed
-    cd ..
-    
-Make plots for visualization. Generate heatmap of read coverages, for visualizing the read coverages for genomic regions. The default setting plots profile on top of heatmaps.
-
-    computeMatrix reference-point -S *q20_unified.bw -R D5.gene.bed -o TSS.gz --referencePoint TSS -b 1500 -a 1500 --skipZeros 
-    plotHeatmap -m TSS.gz -out plotHeatmap_TSS.png
-    
-    computeMatrix reference-point -S *q20_unified.bw -R D5.gene.bed -o TES.gz --referencePoint TES -b 1500 -a 1500 --skipZeros 
-    plotHeatmap -m TES.gz -out plotHeatmap_TES.png
-    
-    
-    computeMatrix scale-regions -S *q20_unified.bw -R D5.gene.bed -o scaleGeneBody.gz --regionBodyLength 3000 -b 1500 -a 1500 --skipZeros
-    plotHeatmap -m scaleGeneBody.gz -out plotHeatmap_scaleGeneBody.png
-    
-In addition, generate summary plot of "meta-profile", for visualizing the average read coverages over a group of genomic regions, and output `.tab` file for R analysis.
-    plotProfile -m scaleGeneBody.gz --perGroup -out plotProfileGroup.png --outFileNameData plotProfile.tab
-
-### bookmark: below to be sorted 
----
-
-### Differential nucleosome occupancy analysis - [DANPOS2](https://sites.google.com/site/danposdoc/)
-
-### Profiling Nucleopostioning - [nucleR](http://bioconductor.org/packages/release/bioc/html/nucleR.html) & [NUCwave](http://nucleosome.usal.es/nucwave/)
-Briefly, we need to examine the wave-length patterns of mapping coverage on the reference genome, and then specifically locate peaks that fit the description of nucleosomes - proper length, non-overlapping, etc.
-
-(Zhang et al. 2015): "Well-positioned and loosely positioned nucleosomes were identified using nucleR (Flores and Orozco, 2011). ... We used the filterFFT function of nucleR to remove noise and smooth the read count score of each position along chromosomes with the parameter pcKeepComp = 0.01. After noise removal, nucleosome peaks and centers/dyads were determined using the peakDetection function (threshold = 25%, score = true, width = 140). Overlapped peaks were merged into longer regions, which were defined as loosely positioned nucleosomes, and distinct individual peaks were defined as well-positioned nucleosomes. If the length of merged peaks is longer than 150 bp, this region is considered to contain more than two nucleosome dyads and thus, contains loosely positioned nucleosomes. If the length of merged peaks is shorter than 150 bp, this region is considered to contain a well-positioned nucleosome."
-
-The phasogram and average distance between two adjacent nucleosomes were calculated using our previously reported methods (Zhang et al., 2013). The nucleosome occupancy change scores were calculated by DANPOS (Chen et al., 2013). Analyses of dinucleotide frequency followed previously published methods (Locke et al., 2010; Valouev et al., 2011).
-
-## Visualization and other result presentation
+Analyses of dinucleotide frequency followed previously published methods (Locke et al., 2010; Valouev et al., 2011).

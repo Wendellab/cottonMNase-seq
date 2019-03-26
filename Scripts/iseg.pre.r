@@ -71,7 +71,7 @@ for(input in fileL){
     }
     MS<-rbind(MS,getMADnSD(bg))
     MS<-cbind(c("chr",chrs,"all"),MS)
-    write.table(MS, file=paste0("../iseg/", gsub("_.*","",input),"_MDS&SD.txt"), row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t")
+    write.table(MS, file= gsub("_.*","_MAD&SD.txt",input), row.names=FALSE,col.names=FALSE,quote=FALSE,sep="\t")
 }
 
 
