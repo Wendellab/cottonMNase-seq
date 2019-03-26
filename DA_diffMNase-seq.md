@@ -6,7 +6,7 @@
 1. [Dns-MNase-seq data preprocessing](#)
 2. [Read mapping and quality control](##2.-Read-mapping-and-quality-control)
 3. [Differential nuclease sensitivity profiling analysis]()
-4. [Nucleosome positioning analysis](DA_diffMNase-seq##4.-Nucleosome-positioning-analysis)
+4. [Nucleosome positioning analysis](#4.-Nucleosome-positioning-analysis)
 
 ## 1. Dns-MNase-seq data preprocessing
 
