@@ -7,7 +7,7 @@
 2. [Read mapping and quality control](##2.-Read-mapping-and-quality-control)
 3. [Differential nuclease sensitivity profiling analysis]()
 4. [Nucleosome positioning analysis](#4.-nucleosome-positioning-analysis)
-5.[test](#5-here-is-test)
+5.[test](#5.-here-is-test)
 
 ## 1. Dns-MNase-seq data preprocessing
 
@@ -214,4 +214,4 @@ What percentage of genome are covered by well-positioned and fuzzy nucleosomes? 
 
 Analyses of dinucleotide frequency followed previously published methods (Locke et al., 2010; Valouev et al., 2011).
 
-### 5 here is test
+### 5. here is test
