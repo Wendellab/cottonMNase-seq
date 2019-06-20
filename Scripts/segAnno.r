@@ -10,151 +10,13 @@
 # module load r-udunits2
 # module load r/3.5.0-py2-ufvuwmm
 # R
-
+setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/isegRes/SegAnnotation")
 # Load libraries
 library(GenomicFeatures)
 library(ChIPseeker) # module load r-udunits2
 library(data.table)
+library(ggplot2)
 
-## Load data
-sampleInfo = data.frame( file= list.files("../isegv1.3.2",pattern="bc6.0.Fus.bed",full.names =T),
-genome = c("A2", "D5","F1","AD1"),
-txDB =  list.files("../refGenomes",pattern="txdb",full.names =T),
-subgenome =c(1,1,2,2),
-bigwig= list.files("../iseg", pattern="bg",full.names =T)[1:4])
-# print info
-sampleInfo
-
-## run peak annotation
-for(i in 1:4)
-{
-    print(sampleInfo[i,])
-
-    filePath = as.character(sampleInfo$file[i])
-    pdf(gsub(".*/","",gsub("_.*","_plotAnno.pdf",filePath)))
-    
-    # read peaks
-    gr = readPeakFile(filePath)
-    gr$V4 = ifelse(gr$V9=="20,20,255", "MSF","MRF")
-    grl = split(gr, gr$V4)
-    
-    # Plot covplot - sample top 1% for visualization, otherwise completely satuated
-    covplot(grl$MSF, weightCol="height.abs", title = "MSFs over chromosomes",lower=quantile(gr$height.abs,0.99))
-    covplot(grl$MRF, weightCol="height.abs", title = "MRFs over chromosomes",lower=quantile(gr$height.abs,0.99))
-    
-    # load txdb
-    dbPath= as.character(sampleInfo$txDB[i])
-    txdb = loadDb(dbPath)
-    # txdb = loadDb("refGenomes/txdb.TM1saski.sqlite")
-    txdb
-    
-    # split At and Dt
-    if(sampleInfo$subgenome[i]==2)
-    {
-        gr$genome = gsub("..$","",seqnames(gr))
-        grl = list(gr[gr$V4=="MSF" & gr$genome=="A"], gr[gr$V4=="MSF" & gr$genome=="D"], gr[gr$V4=="MRF" & gr$genome=="A"], gr[gr$V4=="MRF" & gr$genome=="D"] )
-        names(grl) <- c("MSF.A","MSF.D","MRF.A","MRF.D")
-    }
-    
-    # plot coverage profile and heatmap over TSS
-    # Prepare the promotor regions
-    promoter = getPromoters(TxDb=txdb, upstream=1000, downstream=1000)
-    # Calculate the tag matrix
-    tagMatrixList = lapply(grl, getTagMatrix, windows=promoter)
-    ## Profile plots
-    plotAvgProf(tagMatrixList, xlim=c(-1000, 1000), conf=0.95,resample=1000, facet="row")
-    # Or simply from file
-    # plotAvgProf2(segList, TxDb=txdb, upstream=1000, downstream=1000, xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
-    # Plot heatmap
-    tagHeatmap(tagMatrixList, xlim=c(-1000, 1000), color=NULL)
-    
-    # Annotation of peak location with genes
-    peakAnnoList <- lapply(grl, annotatePeak, TxDb=txdb, tssRegion=c(-3000, 3000), verbose=FALSE)
-    peakAnnoList
-    # comparative plots
-    plotAnnoBar(peakAnnoList)
-    plotDistToTSS(peakAnnoList, title="Distribution of MSFs/MRFs relative to TSS")
-    # single plot, not very useful though
-    lapply(peakAnnoList, upsetplot)
-    lapply(peakAnnoList, plotAnnoPie)
-    # lapply(peakAnnoList, vennpie)
-    dev.off()
-    
-    
-    # save annotation results
-    assign( paste0("peakAnnoList.",sampleInfo$genome[i]), peakAnnoList)
-
-}
-ls(pattern="peakAnnoList.")
-save(list=c("sampleInfo", ls(pattern="peakAnnoList.")), file="genomicAnnotation.rdata")
-
-## annotation list content
-names(peakAnnoList.AD1)  # MSF.A, MSF.D, MRF.A, MRF.D
-peakAnnoList.AD1$"MSF.D"@anno
-peakAnnoList.AD1$"MSF.D"@detailGenomicAnnotation
-peakAnnoList.AD1$"MSF.D"@annoStat
-peakAnnoList.AD1$"MSF.D"@peakNum
-
-## ref genome info
-sl=list()
-sl.nonzero = list()
-for(i in 1:4)
-{
-    bg =as.character(sampleInfo$bigwig[i])
-    dt=fread(bg,sep="\t")
-    chrLen = tapply(dt$V3,dt$V1,max)
-    dt.nonzero= dt[dt$V4!=0,]
-    chrLen.nonzero = tapply(dt.nonzero$V3-dt.nonzero$V2,dt.nonzero$V1,sum)
-    # split At and Dt
-    if(sampleInfo$subgenome[i]==2)
-    {
-        tag =as.character(sampleInfo$genome[i])
-        g = factor(gsub("..$","",names(chrLen)))
-        sl[[paste0(tag,".At")]] =  sum(chrLen[g=="A"])
-        sl[[paste0(tag,".Dt")]] =  sum(chrLen[g=="D"])
-        sl.nonzero[[paste0(tag,".At")]] =  sum(chrLen.nonzero[g=="A"])
-        sl.nonzero[[paste0(tag,".Dt")]] =  sum(chrLen.nonzero[g=="D"])
-    }else{
-        tag =as.character(sampleInfo$genome[i])
-        sl[[tag]] = sum(chrLen)
-        sl.nonzero[[tag]] = sum(chrLen.nonzero)
-    }
-}
-# chr length
-sl
-# total nonzero region
-sl.nonzero
-
-
-## collect peak annotation results
-MSFpeakAnnoList = list( A2 = peakAnnoList.A2$"MSF", D5 = peakAnnoList.D5$"MSF", F1.At = peakAnnoList.F1$"MSF.A", F1.Dt = peakAnnoList.F1$"MSF.D", AD1.At = peakAnnoList.AD1$"MSF.A", AD1.Dt = peakAnnoList.AD1$"MSF.D")
-MRFpeakAnnoList = list( A2 = peakAnnoList.A2$"MRF", D5 = peakAnnoList.D5$"MRF", F1.At = peakAnnoList.F1$"MRF.A", F1.Dt = peakAnnoList.F1$"MRF.D", AD1.At = peakAnnoList.AD1$"MRF.A", AD1.Dt = peakAnnoList.AD1$"MRF.D")
-
-save(sampleInfo, MSFpeakAnnoList, MRFpeakAnnoList, sl, sl.nonzero, file="iseg/genomicAnnotation.byType.rdata")
-
-##
-l = load("iseg/genomicAnnotation.byType.rdata")
-
-## summarize peak number, region, ref genome,
-# MSF
-MSFsummary= data.frame( peakNum = unlist(lapply(MSFpeakAnnoList,function(x)x@peakNum)),
-peakRegion = unlist(lapply(MSFpeakAnnoList,function(x){sum(width(x@anno))})),
-peakRegionProportion = NA,
-refGenome = unlist(sl),
-refNonzero = unlist(sl.nonzero))
-MSFsummary$peakRegionProportion = MSFsummary$peakRegion/ MSFsummary$refGenome
-MSFsummary
-# MRF
-MRFsummary= data.frame( peakNum = unlist(lapply(MRFpeakAnnoList,function(x)x@peakNum)),
-peakRegion = unlist(lapply(MRFpeakAnnoList,function(x){sum(width(x@anno))})),
-peakRegionProportion = NA,
-refGenome = unlist(sl),
-refNonzero = unlist(sl.nonzero))
-MRFsummary$peakRegionProportion = MRFsummary$peakRegion/ MRFsummary$refGenome
-MRFsummary
-
-
-## plot actual area
 # functions
 getCols <- function(n) {
     col <- c("#8dd3c7", "#ffffb3", "#bebada",
@@ -201,7 +63,6 @@ dflist2df = function(df.list)
     # df$Sample=factor(df$Sample, levels=c("A2","D5","F1.At","F1.Dt","AD1.At","AD1.Dt"))
     return(df)
 }
-
 plotPeakInfo = function(df, y=c("Number", "RegionSize", "NumberPerc", "RegionSizePerc") ,xlab="", ylab="Peak region (bp)", title="")
 {
     p <- ggplot(df, aes_string(x = "Sample", fill = "Feature", y = y)) + geom_bar(stat="identity")
@@ -210,63 +71,144 @@ plotPeakInfo = function(df, y=c("Number", "RegionSize", "NumberPerc", "RegionSiz
     p <- p+scale_fill_manual(values=rev(getCols(nlevels(df$Feature))), guide=guide_legend(reverse=TRUE))
     print(p)
 }
-#
-df = dflist2df(lapply(MSFpeakAnnoList, getPeakInfo))
-df$Feature= factor(df$Feature, rev(c( "Promoter (<=1kb)", "Promoter (1-2kb)", "Promoter (2-3kb)", "Exon", "Intron", "Downstream (<=300)","Distal Intergenic" , "5' UTR","3' UTR")))
-df$Sample=factor(df$Sample, levels=rev(c("A2","D5","F1.At","F1.Dt","AD1.At","AD1.Dt")))
-pdf("iseg/plotAnnotMSF.pdf")
-plotPeakInfo(df, y="RegionSize",ylab ="Peak region (bp)", title = "MSF")
-plotPeakInfo(df, y="RegionSizePerc",ylab ="Peak region %", title = "MSF")
-plotPeakInfo(df, y="Number",ylab ="Peak number", title = "MSF")
-plotPeakInfo(df, y="NumberPerc",ylab ="Peak number %", title = "MSF")
-plotAnnoBar(MSFpeakAnnoList, title="MSFs Distribution")
-dev.off()
-# because of the genome size difference, the same 1% of genomic region in D genome is more likely to be near genes than those in A genome. How to correct for the genome size differences, in order to tell whether MSFs are differentially located in A vs D genome?
+peakAnnotation = function(input=sampleInfo, outDir=""){
+    for(i in 1:nrow(sampleInfo))
+    {
+        print(sampleInfo[i,])
+        
+        filePath = as.character(sampleInfo$file[i])
+        pdf(paste0(outDir,gsub("_.*","_plotAnno.pdf",gsub(".*/","",filePath))))
+        
+        # read peaks
+        gr = readPeakFile(filePath)
+        gr$V4 = ifelse(gr$V9=="20,20,255", "Pos","Neg")
+        grl = split(gr, gr$V4)
+        
+        # Plot covplot - sample top 1% for visualization, otherwise completely satuated
+        ## need height from iseg.py generated fus.txt
+        #covplot(grl$MSF, weightCol="height.abs", title = "MSFs over chromosomes",lower=quantile(gr$height.abs,0.99))
+        #covplot(grl$MRF, weightCol="height.abs", title = "MRFs over chromosomes",lower=quantile(gr$height.abs,0.99))
+        
+        # load txdb
+        dbPath= as.character(sampleInfo$txDB[i])
+        txdb = loadDb(dbPath)
+        # txdb = loadDb("refGenomes/txdb.TM1saski.sqlite")
+        txdb
+        
+        # split At and Dt
+        if(sampleInfo$subgenome[i]==2)
+        {
+            gr$genome = gsub("..$","",seqnames(gr))
+            gr$type = paste0(gr$V4,".",gr$genome)
+            grl = split(gr, gr$type)
+        }
+        
+        # plot coverage profile and heatmap over TSS
+        # Prepare the promotor regions
+        promoter = getPromoters(TxDb=txdb, upstream=1000, downstream=1000)
+        # Calculate the tag matrix
+        tagMatrixList = lapply(grl, getTagMatrix, windows=promoter)
+        ## Profile plots
+        p1=plotAvgProf(tagMatrixList, xlim=c(-1000, 1000), conf=0.95,resample=1000, facet="row")
+        # Or simply from file
+        # plotAvgProf2(segList, TxDb=txdb, upstream=1000, downstream=1000, xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
+        # Plot heatmap
+        p2=tagHeatmap(tagMatrixList, xlim=c(-1000, 1000), color=NULL)
+        print(p1)
+        print(p2)
+        
+        # Annotation of peak location with genes
+        peakAnnoList <- lapply(grl, annotatePeak, TxDb=txdb, tssRegion=c(-3000, 3000), verbose=FALSE)
+        peakAnnoList
+        # comparative plots
+        p=plotAnnoBar(peakAnnoList);print(p)
+        p=plotDistToTSS(peakAnnoList, title="Distribution of Pos/Neg footprints relative to TSS");print(p)
+        # single plot, not very useful though
+        lapply(peakAnnoList, upsetplot)
+        lapply(peakAnnoList, plotAnnoPie)
+        # lapply(peakAnnoList, vennpie)
+        dev.off()
+        
+        # save annotation results
+        assign( paste0("peakAnnoList.",sampleInfo$genome[i]), peakAnnoList)
+        
+    }
+    ls(pattern="peakAnnoList.")
+    save(list=c("sampleInfo", ls(pattern="peakAnnoList.")), file=paste0(outDir,"genomicAnnotation.rdata"))
+    
+    ## ref genome info
+    sl=list() # chr length
+    sl.nonzero = list()  # total nonzero region
+    for(i in 1:nrow(sampleInfo))
+    {
+        bg =as.character(sampleInfo$inputBG[i])
+        dt=fread(bg,sep="\t")
+        chrLen = tapply(dt$V3,dt$V1,max)
+        dt.nonzero= dt[dt$V4!=0,]
+        chrLen.nonzero = tapply(dt.nonzero$V3-dt.nonzero$V2,dt.nonzero$V1,sum)
+        # split At and Dt
+        if(sampleInfo$subgenome[i]==2)
+        {
+            tag =as.character(sampleInfo$genome[i])
+            g = factor(gsub("..$","",names(chrLen)))
+            sl[[paste0(tag,".At")]] =  sum(chrLen[g=="A"])
+            sl[[paste0(tag,".Dt")]] =  sum(chrLen[g=="D"])
+            sl.nonzero[[paste0(tag,".At")]] =  sum(chrLen.nonzero[g=="A"])
+            sl.nonzero[[paste0(tag,".Dt")]] =  sum(chrLen.nonzero[g=="D"])
+        }else{
+            tag =as.character(sampleInfo$genome[i])
+            sl[[tag]] = sum(chrLen)
+            sl.nonzero[[tag]] = sum(chrLen.nonzero)
+        }
+    }
+    
+    ## collect peak annotation results
+    # t is either Pos or Neg
+    Sums=list()
+    for(t in names(peakAnnoList.A2)){
+        resL=list( A2 = peakAnnoList.A2[[t]], D5 = peakAnnoList.D5[[t]], F1.At = peakAnnoList.F1[[paste0(t,".A")]], F1.Dt = peakAnnoList.F1[[paste0(t,".D")]], AD1.At = peakAnnoList.AD1[[paste0(t,".A")]], AD1.Dt = peakAnnoList.AD1[[paste0(t,".D")]])
+        # save 
+        assign(paste0(t, "_peakAnnoList"), resL)
+       
+        # generate summary
+        sumRes = data.frame( peakNum = unlist(lapply(resL,function(x)x@peakNum)), peakRegion = unlist(lapply(resL,function(x){sum(width(x@anno))})), peakRegionProportion = NA, refGenome = unlist(sl), refNonzero = unlist(sl.nonzero))
+        sumRes$peakRegionProportion = sumRes$peakRegion/ sumRes$refGenome
+        Sums[[t]]=sumRes
+       
+        # plot summary 
+        df = dflist2df(lapply(resL, getPeakInfo))
+        df$Feature= factor(df$Feature, rev(c( "Promoter (<=1kb)", "Promoter (1-2kb)", "Promoter (2-3kb)", "Exon", "Intron", "Downstream (<=300)","Distal Intergenic" , "5' UTR","3' UTR")))
+        df$Sample=factor(df$Sample, levels=rev(c("A2","D5","F1.At","F1.Dt","AD1.At","AD1.Dt")))
+        pdf(paste0(outDir,"plotAnnot",t,".pdf"))
+        plotPeakInfo(df, y="RegionSize",ylab ="Peak region (bp)", title = t)
+        plotPeakInfo(df, y="RegionSizePerc",ylab ="Peak region %", title = t)
+        plotPeakInfo(df, y="Number",ylab ="Peak number", title = t)
+        plotPeakInfo(df, y="NumberPerc",ylab ="Peak number %", title = t)
+        print(plotAnnoBar(resL, title="Footprints Distribution"))
+        dev.off()
+        # because of the genome size difference, the same 1% of genomic region in D genome is more likely to be near genes than those in A genome. How to correct for the genome size differences, in order to tell whether MSFs are differentially located in A vs D genome?
+    }
+    print(Sums)
+    save(list=c("sampleInfo", "sl", "sl.nonzero","Sums", grep("_peakAnnoList",ls(),value=TRUE)), file=paste0(outDir,"genomicAnnotation.byType.rdata"))
 
-df = dflist2df(lapply(MRFpeakAnnoList, getPeakInfo))
-df$Feature= factor(df$Feature, rev(c( "Promoter (<=1kb)", "Promoter (1-2kb)", "Promoter (2-3kb)", "Exon", "Intron", "Downstream (<=300)","Distal Intergenic" , "5' UTR","3' UTR")))
-df$Sample=factor(df$Sample, levels=rev(c("A2","D5","F1.At","F1.Dt","AD1.At","AD1.Dt")))
-pdf("iseg/plotAnnotMRF.pdf")
-plotPeakInfo(df, y="RegionSize",ylab ="Peak region (bp)", title = "MRF")
-plotPeakInfo(df, y="RegionSizePerc",ylab ="Peak region %", title = "MRF")
-plotPeakInfo(df, y="Number",ylab ="Peak number", title = "MRF")
-plotPeakInfo(df, y="NumberPerc",ylab ="Peak number %", title = "MRF")
-plotAnnoBar(MRFpeakAnnoList, title="MRFs Distribution")
-dev.off()
+} 
 
 
-#########################################################################################
-## Inspect ortho-homoeolog quadruplets for the presence of MSFs in 1kb promoter region ##
-#########################################################################################
 
-l = load("iseg/genomicAnnotation.byType.rdata")
+## run DNS segment annotation
+system("mkdir dns")
+segDir="../isegv1.3.2_032519"
+## Load data
+sampleInfo = data.frame( file= list.files(segDir,pattern="bc6.0.Fus.bed",full.names =T), genome = c("A2", "D5","F1","AD1"), txDB =  list.files("../../refGenomes",pattern="txdb",full.names =T), subgenome =c(1,1,2,2), inputBG= list.files("..", pattern="bg",full.names =T) )
+# print info
+sampleInfo
+peakAnnotation(input=sampleInfo, outDir="dns/")
 
-## collect gene containing MSFs in 1kb promoter
-getGenes=function(csAnno, feature="Promoter (<=1kb)")
-{
-    anno = csAnno@anno
-    genes = anno$geneId[anno$annotation==feature]
-    return(genes)
-}
-geneL = lapply(MSFpeakAnnoList, getGenes)
-str(geneL)
-# List of 6
-#  $ A2    : chr [1:12009] "Ga01G0007" "Ga01G0012" "Ga01G0017" "Ga01G0018" ...
-#  $ D5    : chr [1:10128] "Gorai.001G001000" "Gorai.001G001700" "Gorai.001G002500" "Gorai.001G002600" ...
-#  $ F1.At : chr [1:8452] "Ga01G0003" "Ga01G0005" "Ga01G0005" "Ga01G0005" ...
-#  $ F1.Dt : chr [1:10035] "Gorai.001G000500" "Gorai.001G001300" "Gorai.001G002400" "Gorai.001G002900" ...
-#  $ AD1.At: chr [1:17351] "Gohir.A01G000100" "Gohir.A01G000300" "Gohir.A01G000300" "Gohir.A01G000500" ...
-#  $ AD1.Dt: chr [1:16626] "Gohir.D01G000400" "Gohir.D01G000700" "Gohir.D01G000800" "Gohir.D01G000900" ...
-
-## load 20362 ortholog quadruplets derived from Justin's orthoMCL results version3_081618
-ogQ<-read.table("/lss/research/jfw-lab/Projects/MNase-seq/orthohomoeologQuadruplets101218.txt", sep="\t", header=TRUE)
-head(ogQ)
-# correspondce
-og6 = data.frame(groupID = ogQ$groupID, A2=ogQ$A2, D5=ogQ$D5, F1.At=ogQ$A2, F1.Dt=ogQ$D5, AD1.At=ogQ$At, AD1.Dt=ogQ$Dt)
-# within in each quadruplets, which contains MSFs and which doesn't
-paMSF = data.frame(groupID = ogQ$groupID, A2=ogQ$A2 %in% geneL$A2, D5=ogQ$D5 %in% geneL$D5, F1.At=ogQ$A2 %in% geneL$F1.At, F1.Dt=ogQ$D5 %in% geneL$F1.Dt, AD1.At=ogQ$At %in% geneL$AD1.At, AD1.Dt=ogQ$Dt %in% geneL$AD1.Dt)
-# convert to 6 digit string code
-paMSFn = apply(apply(paMSF[,-1],2,as.numeric), 1, function(x)paste0(x,collapse=""))
-# examine the pattern of p/a
-ddply(as.data.frame(paMSF[,-1]),.(A2,D5,F1.At,F1.Dt,AD1.At,AD1.Dt),nrow)
-table(paMSFn)
+## run Small fragment annotation
+system("mkdir small")
+segDir="../MOA/iseg_v1.3.2_041219"
+## Load data
+sampleInfo = data.frame( file= paste0(segDir,"/",c("A6Ln_bc7.0.Fus.bed","DcL_bc4.0.Fus.bed","FcL_bc4.0.Fus.bed","McL_bc6.0.Fus.bed")), genome = c("A2", "D5","F1","AD1"), txDB =  list.files("../../refGenomes",pattern="txdb",full.names =T), subgenome =c(1,1,2,2), inputBG= list.files("../MOA", pattern="w20.bg",full.names =T)  )
+# print info
+sampleInfo
+peakAnnotation(input=sampleInfo, outDir="smallL/")

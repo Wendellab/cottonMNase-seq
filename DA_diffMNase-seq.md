@@ -12,7 +12,7 @@
 ## 1. Dns-MNase-seq data preprocessing
 
 ### MNase-seq datasets
-Short-read data will be deposited in the NCBI short read archive ([SRP??????](http://trace.ddbj.nig.ac.jp/DRASearch/study?acc=SRP??????)), also as Biobroject [PRJNA??????](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA??????).
+Short-read data will be deposited in the NCBI short read archive ([SRP??????](http://trace.ddbj.nig.ac.jp/DRASearch/study?acc=SRP??????)), also as Biobroject [PRJNA529909](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA529909).
 
 Paired-end reads of 16 samples: 4 species (A2, D5, A2xD5, Maxxa) X 2 digestive conditions (Heavy and Light) X 2 technical reps.
 
@@ -186,7 +186,9 @@ Noting the differences in MAD between genomes (see "sumMDS.txt"), quantile norma
 The raw segmentation output file contains 6 columns: chr, start, end, height, t-stat, p-value. Use script [iseg.summary.r](Scripts/iseg.summary.r) to generate some summary plots, including the number, size and distribution of detected segments, and output BED format. This can also be done using the iSeg python wrapper version.
 
 **Summary**: IGV visualization of BED outputs revealed consistent segmentation profiles between v1.3.2 to v180809b; [iSegSummary021119.xlsx](iSegSummary021119.xlsx) showed that BC6 produced 1% of MSFs and MRFs each, will be used for following analysis. 
- 
+
+In additional to MSFs, the 0-130bp fragments from light digestion was shown to represent the peaks of TF-bound particles in maize. Therefore, iSeg was performed with [moa.r](Scripts/moa.r).
+
 ### 3.2 Genomic annotation of segments
 
 Use ChIPseeker for peak annotation with [segAnno.r](Scripts/segAnno.r): 

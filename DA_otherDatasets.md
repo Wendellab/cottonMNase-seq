@@ -1,5 +1,23 @@
-# Data analysis of external datasets: ChIP-seq, DNase-seq, etc. 
----
+# Data analysis of external datasets 
+
+## D5 ATAC-seq
+
+Sep 27, 2018 - Josh transferred two ATAC-seq datasets (*G.raimondii* and *G. longicalyx* with 2 reps each) from BYU. Those were part of an aborted ATAC-seq project aiming to sample D5, F, A, B and E genomes, and libraries were made by Bob Schmitz et al.
+
+    ls /work/LAS/jfw-lab/ATAC/G.raimondii/ATAC
+    
+The D5 dataset was analyzed in comparison with dns-MNase-seq profiles, in order to better understand different types of open chromatin profiles by ATAC-seq and lightly digested MNase-seq 0-130bp fragments.
+
+The analytic pipeline [atac.r](scripts/atac.r) conducted quality QC and trimming of raw fastq reads, mapping against reference genome, peak calling, visualization, etc. 
+
+Regarding peak calling:
+
+* [Deal lab protocol](http://plant-plasticity.github.io/resources/3_ATAC-seq%20data%20processing.pdf) used HOMER findPeaks in "region" mode: `findpeaks <tag.directory> -o <output> -gsize <effective.mappable.genome.size_7.1e8> minDist 150 -region`
+* [Harvard FAS Informatics ATAC-seq Guidelines](https://informatics.fas.harvard.edu/atac-seq-guidelines.html) uses their own program [Genrich](https://github.com/jsh58/Genrich), and also previously [MACS2 in the order version](https://informatics.fas.harvard.edu/atac-seq-guidelines-old-version.html#peak). 
+
+---book
+## AD1 ChIP-seq and DNase-seq
+
 
 ## 1. get seq from SRA
 

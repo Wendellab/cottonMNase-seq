@@ -1,7 +1,7 @@
 # RNA-seq analysis corresponding to cotton MNase-seq datasets
 ---
 
-## Preprocessing and mapping of RNA-seq datasets
+## 1. Preprocessing and mapping of RNA-seq datasets
 
 ### Locare FASTQ files
 For both MNase-seq and RNA-seq experiments, mature leaf tissue was harvested from flowering branches at 5pm, and immediately flash frozen in liquid nitrogen and stored at −80°C. Four *Gossypium* accessions were used including a natural allopolyploid, *G. hirsutum* (AD1) cultivar Acala Maxxa, and models of its A- and D-genome diploid progenitors, *G. arboreum* (A2) and *G. raimondii* (D5), as well as the corresponding interspecific diploid F1 hybrid (A2 × D5).
@@ -101,12 +101,12 @@ Mapping rate using individual reference transcriptomes.
     /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mapping/SD5-Maxxa-S3.log:75.40% overall alignment rate
 
 
-## Expression profile of gene sets
+## 2. Analyze gene expression profiles
 
-The r code [expTests.r](expTests.r) performs following:
+The r code [expTests.r](scripts/expTests.r) performs following:
 
-* collect rsem count and rpkm results
-* differential expression analysis
+* prepare raw count and rpkm tables from mapping results
+* differential expression analysis based on D reference mapping
 * cis-trans analysis
 * impact of genome evolution: Hr, Pr, Wr
 * expression dominance analyisis

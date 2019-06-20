@@ -15,43 +15,37 @@ To investigate differential regulatory control of duplicated genes (*aka* homoeo
 
 ## Data analysis pipelines
 
+Working directory `/work/LAS/jfw-lab/hugj2006/cottonLeaf`
+
+Long-term storage `/lss/research/jfw-lab/Projects/MNase-seq/cottonLeaf/`
+
 **First**, [Processing of differential MNase-seq datasets](DA_diffMNase-seq.md) resulted into the genome-wide detection of nucleosome position, MNase sensitive and resistant footprints (MSFs/MRFs). Scripts includes:
 
 - [runTrimGalore.sh](Scripts/runTrimGalore.sh) for quality trimming and sequence adaptors removal.
 - [runBowtie2.D.sh](Scripts/runBowtie2.D.sh) is an example for Bowtie2 mapping against the D-genome reference, which needs to be moditified for different reference genome used.
 - [repBam2Bed.r](Scripts/repBam2Bed.r) converted mapping results BAM to BED files and pooled replicates.
 - [iseg.pre.r](Scripts/iseg.pre.r), [iseg.run.r](Scripts/iseg.run.r) and [iseg.summary.r](Scripts/iseg.summary.r) performed L-H and iSeg analysis and summary.
+- [moa.r](Scripts/moa.r) extracted and processed the 0-130bp fragments from light digestion, and ran iSeg.
 - [makeTxDb.r](Scripts/makeTxDb.r) prepared `txdb.<refGenome>.sqlite` for handling gene anonation with R
 - [segAnno.r](Scripts/segAnno.r) conducted genomic annotation for MSFs and MRFs with ChIPseeker.
 - [nucleR.r](Scripts/nucleR.r), [NRL.r](Scripts/NRL.r), and [nucleR.post.r](Scripts/nucleR.post.r) performed nucleosome positioning analyses.
 
 
-**Second**, [Processing of RNA-seq data](DA_RNAseq.md) provides expression profiles coupling with the nucleosome positioning and open chromatin profiles.
+**Second**, [Processing of other data](DA_otherDatasets.md) including ATAC-seq with [atac.r](scripts/atac.r), ChIP-seq, DNase-seq, etc.
 
-**Third**, [Processing of other data]()
+**Third**, [Processing of RNA-seq data](DA_RNAseq.md) analyzed duplicated gene expression patterns regarding bias, dominance, cis and trans regulation, and partition of hybridization and genome doubling effects, with script [expTests.r](scripts/expTests.r).
 
-**Third**, [Question driven integrative analysis](DA_questions.md)
+**Fourth**, [Integrative analyses of above datasets driven by research questions](DA_questions.md) were conducted with scripts: 
 
-
-- [expNuc.r](expNuc.r)
-
-Third, [Integrated analysis]() 
-
-1. inspect H, L and D profiles around TSS and TTS in association with expression quantiles in each species
-2. Inspect 
-inspect the presence of MSFs in 1kb promoter region, 
-[]()
+- [aggreNvisual.r](scripts/aggreNvisual.r) inspect chromatin structure data over genomic feature.
+- [expNuc.r](scripts/expNuc.r) compare chromatin profiles in associatiation with expression patterns.
 
 
 
 
-- Nucleosome calling and classification: [nucleR.r](nucleR.r) & [nucleR.source.r](nucleR.source.r)
+**Misc** Other proposed tasks include:
+ 
 - Assess the reproducibility of replicates: 
-
-
-S
-- [RNA-seq processing](DA_RNAseq.md)
-- [External datasets: ChIP-seq, DNase-seq, etc.](DA_otherDatasets.md)
 - homoeolog/ortholog group
 - Prediction of nucleosome positioning
 - Bioinformatic prediction of cis elements and regions
@@ -65,10 +59,6 @@ Following issues were discussed:
 **Scripts archived but no longer included in pipeline**
 
 - [dns.old.r](Scripts/dns.old.r) for original differential nuclease sensitivity profiling analysis on 0-130bp and 130-260bp size ranges. 
-
-
-Working directory - `/work/LAS/jfw-lab/hugj2006/cottonLeaf`
-Long-term storage - `/lss/research/jfw-lab/Projects/MNase-seq/cottonLeaf/'
 
 
 ## Manuscript preparation

@@ -3,7 +3,7 @@
 
 ## Pre-installed programs
 # * kent source utilities - "bedGraphToBigWig"
-# export PATH="$PATH:~/kent"
+# export PATH="$PATH:/work/LAS/jfw-lab/hugj2006/tools/kent/"
 # module load R
 # module load bedtools2
 # R

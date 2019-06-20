@@ -78,7 +78,7 @@ plotGrouping <- function(norm_log, color, shape, text, tip, save = "plotGrouping
 info = data.frame(sample=names(all$count), genome = gsub("SD5-|-S.","",names(all$count)), rep = rep(1:3,rep=4))
 plotGrouping(log2(all$rpkm[,1:12]+1), color=info$genome, shape=info$genome, tip=info$sample, text=info$genome, save = "plotGrouping.log2rpkm.pdf")
 
-# SD5-D5-S2 turned out to be a polyploid sample, exclude. Also see: /lss/research/jfw-lab/Projects/Eflen/flowerTimeDataset/command.history.sh
+# SD5-D5-S2 turned out to be a polyploid or A2xD5 sample, exclude. Also see: /lss/research/jfw-lab/Projects/Eflen/flowerTimeDataset/command.history.sh
 AD1 = list( count=all$count[,grep("Maxxa",names(count))], rpkm = all$rpkm[,grep("Maxxa",names(count))] )
 F1 = list( count=all$count[,grep("A2xD5",names(count))], rpkm = all$rpkm[,grep("A2xD5",names(count))] )
 D5 = list( count=all$count[,grep("SD5-D5-S[1|3]",names(count))], rpkm = all$rpkm[,grep("SD5-D5-S[1|3]",names(count))] )
@@ -90,13 +90,14 @@ A2 = lapply(A2,function(x){y=x[grep(".A$",rownames(x)),]+x[grep(".D$",rownames(x
 save(all, info, A2, D5, F1, AD1,file="expression.Dref.rdata")
 
 ## Individual ref
+rm(count)
 dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingIndiv/"
 A2 = readRSEM(dir, list.files(dir, pattern="-A2-.*genes.results") )
 #  0     1     2     3     4
 # 12724  7060  7059  7058  7059
 D5 = readRSEM(dir, list.files(dir, pattern="SD5-D5-S[1|3].genes.results") )
 # 0    1    2    3    4
-# 8835 7097 7097 7097 7097
+# 10231  6753  6743  6748  6748
 F1 = readRSEM(dir, list.files(dir, pattern="-A2xD5-.*genes.results") )
 # 0     1     2     3     4
 # 20833 14342 14338 14334 14336
@@ -129,7 +130,7 @@ c("F1 colSums A/D",colSums(F1$rpkm[grep("A",rownames(AD1$rpkm)),1:3])/colSums(F1
 )
 
 checkIndiv # almost equal rpkm Sums of At and Dt in F1 and AD1
-checkDref # RSEM resulted into A/D < 0.9, biasedly assign reads to D genome, therefore I corrected At and Dt library sizes assuming their are equal
+checkDref # RSEM resulted into A/D < 0.9, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
 
 
 #################
@@ -165,7 +166,7 @@ res <- results(DESeq(dds), contrast=c("genome","A2","D5"))
 print( summary(res,alpha=.05) ) # Higher A 3320, D 3848
 write.table(res, file="DE.A2vsD5.txt",  sep="\t")
 # Get parental expression divergence, test for A=0
-A<-res
+A=res
 
 # F1: At vs Dt
 count = cbind(F1$count[grep("A$",rownames(F1$count)),], F1$count[grep("D$",rownames(F1$count)),])
@@ -173,10 +174,10 @@ rownames(count) =gsub(".A$","",rownames(count))
 names(count)=paste(names(count),c("A","A","A","D","D","D"),sep=".")
 info = data.frame(sample=names(count), genome = c("A","A","A","D","D","D"))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
-libTotal = rep(colSums(F1$count),2)
-libSize = libTotal/mean(libTotal)
+colSums(count) # RSEM assigned more reads to Dt than At, skipp follows
+# libTotal = rep(colSums(F1$count),2)
+# libSize = libTotal/mean(libTotal)
 # sizeFactors(dds) = libSize
-colSums(count)
 res = results(DESeq(dds),contrast=c("genome","A","D"))
 print( summary(res,alpha=.05) ) # Higher A 2084, D 2575
 write.table(res, file="DE.F1.AtvsF1.Dt.txt",  sep="\t")
@@ -189,10 +190,10 @@ rownames(count) =gsub(".A$","",rownames(count))
 names(count)=paste(names(count),c("A","A","A","D","D","D"),sep=".")
 info = data.frame(sample=names(count), genome = c("A","A","A","D","D","D"))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
-libTotal = rep(colSums(AD1$count),2)
-libSize = libTotal/mean(libTotal)
-#sizeFactors(dds) = libSize
 colSums(count)
+#libTotal = rep(colSums(AD1$count),2)
+#libSize = libTotal/mean(libTotal)
+#sizeFactors(dds) = libSize
 res = results(DESeq(dds),contrast=c("genome","A","D"))
 print( summary(res,alpha=.05) ) # Higher A 2678, D 3209
 write.table(res, file="DE.AD1.AtvsAD1.Dt.txt",  sep="\t")
@@ -293,7 +294,7 @@ print( summary(res,alpha=.05) ) # higher AD1 3297, A2 2740
 write.table(res, file="DE.AD1vsA2.txt",  sep="\t")
 # differential expression by genome doubling
 AD1vsA2 =res
-# F1.total vs A2
+
 
 # F1.total vs D5
 count = total[,grep("A2xD5|-D5-",names(total))]
@@ -388,8 +389,8 @@ dev.off()
 ########################
 ## cis-trans analysis ##
 ########################
-load("diffExprPattern.rdata")
-
+load("diffExprPattern.rdata")->l
+l
 ### comparing A-B= 0 is tricky, both are log2FoldChange and its standard error lfcse
 # maybe I can compare with t test
 #### T test from means and standard errors ####
@@ -543,10 +544,11 @@ classEffects<-function(A.res, B.res, Bp.res, A.n, B.n, Bp.n, log2fc.threshold=0)
 
 # categorization using A, B and Bp
 effect = classEffects(A, B, Bp, A.n=3, B.n=3, Bp.n=3, log2fc.threshold=0)
+unique(effect[,1:6]==res[,1:6])
 res=cbind(res, effect[,-c(1:6)])
 
 # make plots
-sumT =  rbind(c("Regulation Pattern","Meature","A","D"),
+sumT =  rbind(c("Regulation Pattern","Measure","A","D"),
 c("Diploid divergence, F1", "A", getSig(A,direction="up"), getSig(A,direction="down")),
 c("Homoeolog bias, F1", "B", getSig(B,direction="up"), getSig(B,direction="down")),
 c("Homoeolog bias, AD1", "Bp", getSig(Bp,direction="up"), getSig(Bp,direction="down")),
@@ -554,6 +556,15 @@ c("Hybridization effect direction", "Hr", length(grep("Hr>0",res$Hr.reg)), lengt
 c("Allopolyploidy effect direction", "Pr", length(grep("Pr>0",res$Pr.reg)), length(grep("Pr<0",res$Pr.reg))),
 c("Genome doubling effect direction", "Wr", length(grep("Wr>0",res$Wr.reg)), length(grep("Wr<0",res$Wr.reg)))
 )
+sumT
+# "Regulation Pattern"               "Measure" "A"    "D"
+# "Diploid divergence, F1"           "A"       "3320" "3848"
+# "Homoeolog bias, F1"               "B"       "2084" "2575"
+# "Homoeolog bias, AD1"              "Bp"      "2678" "3209"
+# "Hybridization effect direction"   "Hr"      "504"  "294"
+# "Allopolyploidy effect direction"  "Pr"      "1480" "1457"
+# "Genome doubling effect direction" "Wr"      "1051" "1160"
+
 pdf("plotEvoImpact.pdf")
 textplot(data.frame(sumT),cex=0.6)
 # compare impacts
@@ -564,7 +575,6 @@ lines(c(-10,10),c(-10,10),col="blue")
 plot( res[,"Wr"], res[,"Pr"],pch=".", main=paste("cor = ", cor(res[,"Wr"],res[,"Pr"],use="complete.obs")))
 lines(c(-10,10),c(-10,10),col="blue")
 dev.off()
-
 
 # ouput
 write.table(res, file ="regPattern.txt",sep="\t")
@@ -620,8 +630,7 @@ dominance.F1 = classDominance(F1vsMid, F1vsA2, F1vsD5, log2fc.threshold=0)
 dominance.AD1 = classDominance(AD1vsMid, AD1vsA2, AD1vsD5, log2fc.threshold=0)
 
 # make plots
-sumT =  rbind(table(dominance.AD1$category), table(dominance.F1$category)
-)
+sumT =  rbind(table(dominance.AD1$category), table(dominance.F1$category))
 rownames(sumT)=c("AD1","F1")
 pdf("plotDominance.pdf")
 textplot(data.frame(sumT),cex=0.6)
@@ -655,12 +664,15 @@ sumTbl[,c("A","D")]=apply(sumTbl[,c("A","D")],2,as.numeric)
 sumTbl$balance=ifelse(sumTbl$A>sumTbl$D,"A>D","A<D")
 sumTbl$chisqTest.pval = round(apply(sumTbl[,c("A","D")],1,function(x)chisq.test(x)$"p.value") ,6)
 sumTbl
+library(gplots)
 pdf("plotRegSummary.pdf")
 textplot(sumTbl,cex=0.6)
 dev.off()
 
-load("expNuc.rdata")
-select=as.character(og6$D5)
+# restrict to Orthpolog groups
+ogQ<-read.table("../../orthohomoeologQuadruplets101218.txt", sep="\t", header=TRUE)
+head(ogQ)
+select=as.character(ogQ$D5)
 res=res[select,]
 dominance.F1=dominance.F1[select,]
 dominance.AD1=dominance.AD1[select,]
@@ -683,63 +695,54 @@ pdf("plotRegSummary.og20362.pdf")
 textplot(sumTbl,cex=0.6)
 dev.off()
 
-#####################
-## complex heapmap ##
-#####################
+## draw complex heapmap check relationships between different patterns
 library(RColorBrewer)
 library(ComplexHeatmap)
-
-load("cistrans.rdata")
-load("expression.Dref.rdata")
-load("expNuc.rdata")
-
+library(circlize)
+load("expression.Dref.rdata")->l
+l # "all"  "info" "A2"   "D5"   "F1"   "AD1"
 hmcol <- colorRampPalette(brewer.pal(9, "GnBu"))(100)
-
-#select=1:500
-#select = which(res$category =="1.Cis only")
-select=og6$D5
-
-pdf("plotComplexHeatmap.by.Category.pdf")
-for(cat in levels(factor(res$category)) ){
-    
+for(cat in levels(factor(res$category))[1:5] ){
+    print(cat)
     select = which(res$category ==cat)
-
-# rpkm expression of A2, D5, F1.At, F1.Dt, AD1.At, AD2.Dt
-rpkm = cbind(A2$rpkm[,1:3],D5$rpkm[,1:2],F1$rpkm[grep("A$",rownames(F1$rpkm)),1:3],F1$rpkm[grep("D$",rownames(F1$rpkm)),1:3],AD1$rpkm[grep("A$",rownames(AD1$rpkm)),1:3],AD1$rpkm[grep("D$",rownames(AD1$rpkm)),1:3])
-info = data.frame(sample=names(rpkm), species = gsub("SD5-|-S.","",names(rpkm)), ploidy=c(rep("diploid",5), rep("F1",6),rep("AD1",6)), genome =c(rep("A",3),rep("D",2),rep(c("A","D"),each=3,2)) )
-info$id = paste(info$sample,info$origin,sep=".")
-names(rpkm) =info$id
-# head annotation
-ha = HeatmapAnnotation(df = info[,c("ploidy","genome")], col = list(ploidy=structure(brewer.pal(3, "Set2"), names = c("diploid","F1","AD1")),genome=c("A"="pink","D"="royalblue")))
-# heatmap of log2rpkm, not scaled
-hm.rpkm=Heatmap(as.matrix(log2(rpkm[select,]+1)), name = "log2rpkm",col = hmcol, cluster_column = FALSE, top_annotation = ha,  top_annotation_height = unit(4, "mm"),column_title = "log2rpkm", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = FALSE)
-# hm.rpkm
-
-# log2(A/D) ratios of A, B, Bp
-log2ratio = data.frame(A = res$A, B = res$B, Bp = res$Bp)
-log2ratio$A[res$cisNtrans =="A=0"] = 0
-log2ratio$B[res$cis =="B=0"] = 0
-log2ratio$Bp[Bp$padj>0.05 | is.na(Bp$padj)] = 0
-# head annotation
-ha = HeatmapAnnotation(df = data.frame(ploidy=c("diploid","F1","AD1")), col = list(ploidy=structure(brewer.pal(3, "Set2"), names = c("diploid","F1","AD1"))) )
-# heatmap of log2ratio, use default redBlue color
-hm.ratio=Heatmap(as.matrix(log2ratio[select,]), name = "log2(A/D)", cluster_column = FALSE, top_annotation = ha,  top_annotation_height = unit(4, "mm"),column_title = "log2(A/D)", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = TRUE)
-# hm.ratio
-
-#    cis trans classes, use regCol
-ct = data.frame(category=res$category[select])
-hm.ct = rowAnnotation(df = ct, col = list(category = structure( c("red","blue","purple","brown","green","black","grey"), names=levels(factor(res$category)))), width = unit(1, "cm"))
-# hm.ct
-
-# additional categories of Hr, Pr, Wr
-impact = res[,c("Hr","Pr","Wr")]
-impact$Hr[res$Hr.reg == "Hr=0"] = 0
-impact$Pr[res$Pr.reg == "Pr=0"] = 0
-impact$Wr[res$Wr.reg == "Wr=0"] = 0
-# heatmap of log2ratio, use default redBlue color
-hm.impact=Heatmap(as.matrix(impact[select,]), name = "evolution impact", cluster_column = FALSE, column_title = "evolution impact", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = TRUE)
-# hm.impact
-
-draw(hm.rpkm+hm.ratio+hm.ct+hm.impact, newpage = TRUE, column_title = "Gene regulatory divergence", column_title_gp = gpar(fontsize = 12, fontface = "bold"), heatmap_legend_side = "bottom")
+    # rpkm expression of A2, D5, F1.At, F1.Dt, AD1.At, AD2.Dt
+    rpkm = cbind(A2$rpkm[,1:3],D5$rpkm[,1:2],F1$rpkm[grep("A$",rownames(F1$rpkm)),1:3],F1$rpkm[grep("D$",rownames(F1$rpkm)),1:3],AD1$rpkm[grep("A$",rownames(AD1$rpkm)),1:3],AD1$rpkm[grep("D$",rownames(AD1$rpkm)),1:3])
+    info = data.frame(sample=names(rpkm), species = gsub("SD5-|-S.","",names(rpkm)), ploidy=c(rep("diploid",5), rep("F1",6),rep("AD1",6)), genome =c(rep("A",3),rep("D",2),rep(c("A","D"),each=3,2)) )
+    info$id = paste(info$sample,info$origin,sep=".")
+    names(rpkm) =info$id
+    # head annotation
+    ha = HeatmapAnnotation(df = info[,c("ploidy","genome")], col = list(ploidy=structure(brewer.pal(3, "Set2"), names = c("diploid","F1","AD1")),genome=c("A"="pink","D"="royalblue")))
+    # heatmap of log2rpkm, not scaled
+    hm.rpkm=Heatmap(as.matrix(log2(rpkm[select,]+1)), name = "log2rpkm",col = hmcol, cluster_column = FALSE, top_annotation = ha,  top_annotation_height = unit(4, "mm"),column_title = "log2rpkm", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = FALSE)
+    # hm.rpkm
+    
+    # log2(A/D) ratios of A, B, Bp
+    log2ratio = data.frame(A = res$A, B = res$B, Bp = res$Bp)
+    log2ratio$A[res$cisNtrans =="A=0"] = 0
+    log2ratio$B[res$cis =="B=0"] = 0
+    log2ratio$Bp[res$Bp.padj>0.05 | is.na(res$Bp.padj)] = 0
+    # head annotation
+    ha = HeatmapAnnotation(df = data.frame(ploidy=c("diploid","F1","AD1")), col = list(ploidy=structure(brewer.pal(3, "Set2"), names = c("diploid","F1","AD1"))) )
+    # heatmap of log2ratio, use default redBlue color
+    hm.ratio=Heatmap(as.matrix(log2ratio[select,]), name = "log2(A/D)", cluster_column = FALSE, top_annotation = ha,  top_annotation_height = unit(4, "mm"),column_title = "log2(A/D)", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = TRUE)
+    # hm.ratio
+    
+    #    cis trans classes, use regCol
+    ct = data.frame(category=res$category[select])
+    hm.ct = rowAnnotation(df = ct, col = list(category = structure( c("red","blue","purple","brown","green","black","grey"), names=levels(factor(res$category)))), width = unit(1, "cm"))
+    # hm.ct
+    
+    # additional categories of Hr, Pr, Wr
+    impact = res[,c("Hr","Pr","Wr")]
+    impact$Hr[res$Hr.reg == "Hr=0"] = 0
+    impact$Pr[res$Pr.reg == "Pr=0"] = 0
+    impact$Wr[res$Wr.reg == "Wr=0"] = 0
+    # heatmap of log2ratio, use default redBlue color
+    hm.impact=Heatmap(as.matrix(impact[select,]), name = "evolution impact", cluster_column = FALSE, column_title = "evolution impact", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = TRUE)
+    # hm.impact
+    
+    pdf(paste0("plotCH.",cat,".pdf"))
+    draw(hm.rpkm+hm.ratio+hm.ct+hm.impact, newpage = TRUE, column_title = "Gene regulatory divergence", column_title_gp = gpar(fontsize = 12, fontface = "bold"), heatmap_legend_side = "bottom")
+    dev.off()
 }
-dev.off()
+### hard to make sense

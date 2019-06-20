@@ -3,15 +3,14 @@ library(GenomicRanges)
 library(data.table)
 library(ggbio)
 options(scipen=10)
-
-bgs = list.files("iseg/", pattern="bg")
+setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/")
+bgs = list.files("isegRes/", pattern="bg",full=T)
 sl=list()
 nonzero = list()
 for(bg in bgs)
 {
-    flag = gsub("_.*","",bg)
-    filePath = paste0("iseg/",bg)
-    dt=fread(filePath,sep="\t")
+    flag = gsub(".*/|_.*","",bg)
+    dt=fread(bg,sep="\t")
     sl[[flag]] = tapply(dt$V3,dt$V1,max)
     dt$width = dt$V3-dt$V2
     select= (dt$V4!=0 )
@@ -41,7 +40,8 @@ log10hist <- function(x, main = filePath, xlab="",breaks = "Sturges")
 # previous version
 # fileL = grep("Fus.txt",list.files("iseg/"),value=TRUE)
 # v1.3.2
-filedir = "isegv1.3.2/"
+# reading iseg output would generate some warnings, just ignore
+filedir = "isegRes/isegv1.3.2_032519/"
 fileL = grep("0.txt",list.files(filedir),value=TRUE)
 
 ## loop import and report stats for each flag
