@@ -75,5 +75,5 @@ for(input in fileL){
 }
 
 
-q()
-n
+q("no")
+

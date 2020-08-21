@@ -1,5 +1,5 @@
 options(scipen=999)
-setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/Ranalysis")
+setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase/Ranalysis")
 # setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase")
 ################################
 ## collect expression results ##
@@ -35,17 +35,23 @@ readKallisto=function(dir="", fileL=c()){
 
 
 ## D5 and index ref
-dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/MappingDref/"
-# dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase/MappingDref/"
+dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase/MappingDref/"
 all=readKallisto(dir, paste0(list.files(dir, patter="[1-9]$"),"/abundance.tsv") )
 lapply(all,head)
 count = all$count
 ### examine At read portion, SD5-D5-S2 is not diploid
-# colSums(all$count[grep("A$",rownames(count)),])/colSums(all$count)
-#  SD5-A2-S1    SD5-A2-S4    SD5-A2-S5 SD5-A2xD5-S1 SD5-A2xD5-S2 SD5-A2xD5-S3
-# 0.995433426  0.995854953  0.996073544  0.486486164  0.501333588  0.501576854
-#   SD5-D5-S1    SD5-D5-S2    SD5-D5-S3 SD5-Maxxa-S1 SD5-Maxxa-S2 SD5-Maxxa-S3
-# 0.007514745  0.589617932  0.008594063  0.490151552  0.492881564  0.495400658
+colSums(all$count[grep("A$",rownames(count)),])/colSums(all$count)
+# SRR5886146 SRR5886147 SRR5886148 SRR5886149 SRR5886155 SRR5886156
+# 0.58384415 0.49080340 0.06804569 0.01106442 0.96425369 0.99386718
+info = data.frame(sample=names(all$count), genome = c("AD1","AD1","D5","D5","A2","A2"), rep = rep(1:2,rep=3))
+info
+#      sample genome rep
+#1 SRR5886146    AD1   1
+#2 SRR5886147    AD1   2
+#3 SRR5886148     D5   1
+#4 SRR5886149     D5   2
+#5 SRR5886155     A2   1
+#6 SRR5886156     A2   2
 
 # my custom function
 library(ggplot2)
@@ -74,40 +80,34 @@ plotGrouping <- function(norm_log, color, shape, text, tip, save = "plotGrouping
     dev.off()   }
 
 # plots
-info = data.frame(sample=names(all$count), genome = gsub("SD5-|-S.","",names(all$count)), rep = rep(1:3,rep=4))
-plotGrouping(log2(all$tpm[,1:12]+1), color=info$genome, shape=info$genome, tip=info$sample, text=info$genome, save = "plotGrouping.log2tpm.pdf")
+plotGrouping(log2(all$tpm[,1:6]+1), color=info$genome, shape=info$genome, tip=info$sample, text=info$genome, save = "plotGrouping.log2tpm.pdf")
 
 # SD5-D5-S2 turned out to be a polyploid or A2xD5 sample, exclude. Also see: /lss/research/jfw-lab/Projects/Eflen/flowerTimeDataset/command.history.sh
-AD1 = list( count=all$count[,grep("Maxxa",names(count))], tpm = all$tpm[,grep("Maxxa",names(count))] )
-F1 = list( count=all$count[,grep("A2xD5",names(count))], tpm = all$tpm[,grep("A2xD5",names(count))] )
-D5 = list( count=all$count[,grep("SD5-D5-S[1|3]",names(count))], tpm = all$tpm[,grep("SD5-D5-S[1|3]",names(count))] )
-A2 = list( count=all$count[,grep("-A2-",names(count))], tpm = all$tpm[,grep("-A2-",names(count))] )
+AD1 = list( count=all$count[,grep("AD1",info$genome)], tpm = all$tpm[,grep("AD1",info$genome)] )
+A2 = list( count=all$count[,grep("A2",info$genome)], tpm = all$tpm[,grep("A2",info$genome)] )
+D5 = list( count=all$count[,grep("D5",info$genome)], tpm = all$tpm[,grep("D5",info$genome)] )
 # add up At and Dt in diploids
 D5 = lapply(D5,function(x){y=x[grep(".A$",rownames(x)),]+x[grep(".D$",rownames(x)),];rownames(y)=gsub(".A$","",rownames(y));return(y)})
 A2 = lapply(A2,function(x){y=x[grep(".A$",rownames(x)),]+x[grep(".D$",rownames(x)),];rownames(y)=gsub(".A$","",rownames(y));return(y)})
-save(all, info, A2, D5, F1, AD1,file="expression.Dref.rdata")
+save(all, info, A2, D5, AD1,file="expression.Dref.rdata")
 
 # Individual ref
 rm(count)
 rm(tpm)
-dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/MappingIndiv/"
-AD1 = readKallisto(dir, paste0(list.files(dir, pattern="Maxxa.*[1-9]$"),"/abundance.tsv") )
+dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase/MappingIndiv/"
+AD1 = readKallisto(dir, paste0(list.files(dir, pattern="SRR5886146$|SRR5886147$"),"/abundance.tsv") )
 #    0     1     2     3     4
-#14618 15071 15071 15071 15071
-A2 = readKallisto(dir, paste0(list.files(dir, pattern="-A2-.*[1-9]$"),"/abundance.tsv") )
+#6127 17194 17194 17193 17194
+A2 = readKallisto(dir, paste0(list.files(dir, pattern="SRR5886155$|SRR5886156$"),"/abundance.tsv") )
 #    0     1     2     3     4
-#11396  7586  7586  7585  7586
-D5 = readKallisto(dir, paste0(list.files(dir, pattern="SD5-D5-S[1|3]$"),"/abundance.tsv") )
+#4853 9222 9221 9221 9222
+D5 = readKallisto(dir, paste0(list.files(dir, pattern="SRR5886148$|SRR5886149$"),"/abundance.tsv") )
 #    0     1     2     3     4
-#  7015 7552 7552 7552 7552
-F1 = readKallisto(dir, paste0(list.files(dir, pattern="A2xD5.*[1-9]$"),"/abundance.tsv") )
-#    0     1     2     3     4
-#18766 15049 15049 15049 15049
+#  2632 8648 8648 8647 8648
 lapply(AD1,head)
 lapply(A2,head)
 lapply(D5,head)
-lapply(F1,head)
-save(A2,D5,F1,AD1,file="expression.Indiv.rdata")
+save(A2,D5,AD1,file="expression.Indiv.rdata")
 
 
 #################################
@@ -116,20 +116,49 @@ save(A2,D5,F1,AD1,file="expression.Indiv.rdata")
 
 load("expression.Indiv.rdata")
 checkIndiv=rbind(
-c("Diploids colSums A2/D5",colSums(A2$tpm[,1:3])/c(colSums(D5$tpm[,1:2]),NA)),
-c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:3])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:3])),
-c("F1 colSums A/D",colSums(F1$tpm[grep("Gar",rownames(F1$tpm)),1:3])/colSums(F1$tpm[grep("Gorai",rownames(F1$tpm)),1:3]))
+c("Diploids colSums A2/D5",colSums(A2$tpm[,1:2])/colSums(D5$tpm[,1:2])),
+c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:2])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:2]))
 )
-checkIndiv # F1 A/D =0.8, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
+checkIndiv
+#[1,] "Diploids colSums A2/D5" "0.999999729450244" "1.00000005073998"
+#[2,] "AD1 colSums A/D"        "1.57505791778762"  "0.965461002223231"
+# AD1 SRR5886146 is trouble
 
 load("expression.Dref.rdata")
 checkDref=rbind(
-c("Diploids colSums A2/D5",colSums(A2$tpm[,1:3])/c(colSums(D5$tpm[,1:2]),NA)),
-c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:3])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:3])),
-c("F1 colSums A/D",colSums(F1$tpm[grep("A",rownames(F1$tpm)),1:3])/colSums(F1$tpm[grep("D",rownames(F1$tpm)),1:3]))
+c("Diploids colSums A2/D5",colSums(A2$tpm[,1:2])/colSums(D5$tpm[,1:2])),
+c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:2])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:2]))
 )
-checkDref # RSEM resulted into A/D < 1, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
+checkDref
+#                              SRR5886155         SRR5886156
+#  "Diploids colSums A2/D5" "1.00000004042639" "0.999999935397274"
+#  "AD1 colSums A/D"        "2.0649470519903"  "0.988596175319365"
 
+############################################
+## DE analysis: mature leaf vs young leaf ##
+############################################
+library(DESeq2)
+library(gplots)
+
+setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf")
+l=load(file="RNAseq/Ranalysis/expression.Dref.rdata")
+info$tissue="SD5"
+info.ml = info
+count.ml = all$count
+tpm.ml = all$tpm[,1:12]
+l=load(file="DNase/Ranalysis/expression.Dref.rdata")
+info$tissue="YL"
+info.yl = info
+count.yl = all$count
+tpm.yl = all$tpm[,1:6]
+# put together
+table(rownames(count.yl)==rownames(count.ml))
+count = cbind(count.yl, count.ml)
+tpm = cbind(tpm.yl, tpm.ml)
+info= rbind(info.yl,info.ml)
+plotGrouping(log2(tpm+1), color=info$genome, shape=info$tissue, tip=info$sample, text=info$genome, save = "DNase/Ranalysis/plotGrouping.log2tpm.ML&YL.pdf")
+
+-----book
 
 #################
 ## DE analysis ##

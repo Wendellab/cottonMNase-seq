@@ -11,40 +11,24 @@ To investigate differential regulatory control of duplicated genes (*aka* homoeo
 * **2016**: A modified protocol was estblished to extract high-quality nucleus from mature cotton tissues including leaf and petal, which proves to be the most critical step of chromatin accessibility assays. 
 * **2017**: Library preparation and sequencing was finished for 14 out of 16 samples. 
 * **2018**: All sequencing datasets were completed. Data analysis in ongoing.
-* **2019**: Data analysis and manuscript writing.
+* **2019-2020**: Data analysis and manuscript writing.
 
-## Data analysis pipelines
+## Data analysis workflow
 
 Working directory `/work/LAS/jfw-lab/hugj2006/cottonLeaf`
 
 Long-term storage `/lss/research/jfw-lab/Projects/MNase-seq/cottonLeaf/`
 
-**First**, [Processing of differential MNase-seq datasets](DA_diffMNase-seq.md) resulted into the genome-wide detection of nucleosome position, MNase sensitive and resistant footprints (MSFs/MRFs). Scripts includes:
-
-- [runTrimGalore.sh](Scripts/runTrimGalore.sh) for quality trimming and sequence adaptors removal.
-- [runBowtie2.D.sh](Scripts/runBowtie2.D.sh) is an example for Bowtie2 mapping against the D-genome reference, which needs to be moditified for different reference genome used.
-- [repBam2Bed.r](Scripts/repBam2Bed.r) converted mapping results BAM to BED files and pooled replicates.
-- [iseg.pre.r](Scripts/iseg.pre.r), [iseg.run.r](Scripts/iseg.run.r) and [iseg.summary.r](Scripts/iseg.summary.r) performed L-H and iSeg analysis and summary.
-- [moa.r](Scripts/moa.r) extracted and processed the 0-130bp fragments from light digestion, and ran iSeg.
-- [makeTxDb.r](Scripts/makeTxDb.r) prepared `txdb.<refGenome>.sqlite` for handling gene anonation with R
-- [segAnno.r](Scripts/segAnno.r) conducted genomic annotation for MSFs and MRFs with ChIPseeker.
-- [nucleR.r](Scripts/nucleR.r), [NRL.r](Scripts/NRL.r), and [nucleR.post.r](Scripts/nucleR.post.r) performed nucleosome positioning analyses.
-
-
-**Second**, [Processing of other data](DA_otherDatasets.md) including ATAC-seq with [atac.r](scripts/atac.r), ChIP-seq, DNase-seq, etc.
-
-**Third**, [Processing of RNA-seq data](DA_RNAseq.md) analyzed duplicated gene expression patterns regarding bias, dominance, cis and trans regulation, and partition of hybridization and genome doubling effects, with script [expTests.r](scripts/expTests.r).
-
-**Fourth**, [Integrative analyses of above datasets driven by research questions](DA_questions.md) were conducted with scripts: 
-
-- [aggreNvisual.r](scripts/aggreNvisual.r) inspect chromatin structure data over genomic feature.
-- [expNuc.r](scripts/expNuc.r) compare chromatin profiles in associatiation with expression patterns.
+1. [Processing of differential MNase-seq datasets](DA_diffMNase-seq.md) resulted into the genome-wide characterization of nucleosome positioning, differential nuclease sensitivity (DNS), and sub-nucleosomal particle occupancy (SPO). Chromatin accessible regions were annotated by MNase sensitive and resistant footprints (MSFs/MRFs) and SPO fragment centers. 
+2. [Processing of other datasets](DA_otherDatasets.md) including ATAC-seq, Hi-C, ChIP-seq, DNase-seq, etc.
+3. [Analyze RNA-seq data](DA_RNAseq.md) to examine gene expression patterns regarding bias, dominance, *cis*/*trans* regulation, and partition of hybridization and genome doubling effects.
+4. [Integrative analyses of above datasets driven by research questions](DA_questions.md).
 
 
 
 
 **Misc** Other proposed tasks include:
- 
+
 - Assess the reproducibility of replicates: 
 - homoeolog/ortholog group
 - Prediction of nucleosome positioning

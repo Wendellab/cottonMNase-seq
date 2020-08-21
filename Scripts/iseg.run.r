@@ -1,4 +1,4 @@
-&####### DNS-seq pipline ########
+####### DNS-seq pipline ########
 ## See detailed notes "iSeg_analysis_notes"
 
 ## Pre-installed programs
@@ -10,7 +10,7 @@ options(threads=8)
 options(verbose=T)
 
 ## examine MAD and SD across genome, within "iseg/"
-fileL =c(list.files("mappingA_new",pattern="MAD&SD.txt", full.names=TRUE), list.files("mappingD",pattern="MAD&SD.txt", full.names=TRUE), list.files("mappingF",pattern="MAD&SD.txt", full.names=TRUE), list.files("mappingMnew",pattern="MAD&SD.txt", full.names=TRUE))
+fileL =c(list.files("mappingA_WHU",pattern="MAD&SD.txt", full.names=TRUE), list.files("mappingD",pattern="MAD&SD.txt", full.names=TRUE), list.files("mappingF2020",pattern="MAD&SD.txt", full.names=TRUE), list.files("mappingM_UTX",pattern="MAD&SD.txt", full.names=TRUE))
 res = data.frame(chr=c(1:13,"all"))
 for(file in fileL)
 {
@@ -31,10 +31,10 @@ boxplot(res[,-1], las=2)
 dev.off()
 
 ## quantile normalization for pooled data, expect A
-bgs = c(list.files("mappingA_new",pattern="..Dn.*_qnorm.bg",full.names=TRUE),
+bgs = c(list.files("mappingA_WHU",pattern="..Dn.*_qnorm.bg",full.names=TRUE),
 list.files("mappingD",pattern=".cD.*_qnorm.bg",full.names=TRUE),
-list.files("mappingF",pattern=".cD.*_qnorm.bg",full.names=TRUE),
-list.files("mappingMnew",pattern=".cD.*_qnorm.bg",full.names=TRUE))
+list.files("mappingF2020",pattern=".cD.*_qnorm.bg",full.names=TRUE),
+list.files("mappingM_UTX",pattern=".cD.*_qnorm.bg",full.names=TRUE))
 bgs
 # unqual lines normalization?
 qbgs=bgQuantileNorm(bgs)
@@ -91,25 +91,27 @@ pdf("isegRes/sumMAD.qnorm.pdf")
 boxplot(res[,-1], las=2)
 dev.off()
 
+
 ## now run iSegv190207 v1.3.2 on bigram
 # define input and output
 setwd("isegRes")
-system("mkdir isegv1.3.2_032519")
+isegDir = "iseg_v1.3.4_062020"
+cat("# run iseg\nmodule load boost/1.69.0-py3-openmpi3-yc4whx2\nexport PATH=$PATH:/work/LAS/jfw-lab/hugj2006/tools/isegv190624/iSeg", file="runiSeg.sh",sep="\n")
+cat(paste0("mkdir ",isegDir), file="runiSeg.sh",sep="\n",append=TRUE)
 fileL = list.files(".", pattern= "..D.*_qnorm.bg", full.names=TRUE)
 fileL
 maxwl =100
 minwl =10
 for(input in fileL){
     outputDir = gsub("_.*","",input)
-    # run iseg for BC 1, 2, 3
-    cmd<-paste0("~/iSegv190207/iSeg -cz -ctp -bc 1.0-2.0-3.0-4.0-5.0-6.0 -minwl ",minwl," -maxwl ",maxwl," -d ",input," -of ",outputDir, " >isegv1.3.2_032519/",outputDir,".manifest.txt")
-    message(cmd)
-    system(cmd)
-    system(paste0("mv ",outputDir,"/* isegv1.3.2_032519/ ; rm -r ",outputDir))
+    cmd1<-paste0("iSeg -cz -ctp -bc 4.0-4.5-5.0-5.5-6.0-6.5-7.0 -minwl ",minwl," -maxwl ",maxwl," -d ",input," -of ",outputDir, " >",isegDir,"/",outputDir,".manifest.txt")
+    cmd2 <- paste0("mv ",outputDir,"/* ",isegDir,"/; rm -r ",outputDir)
+    cat(cmd1,cmd2, file="runiSeg.sh",sep="\n", append=TRUE)
 }
+system("cat runiSeg.sh")
+system("bash runiSeg.sh")
 
-q()
-n
+q("no")
 # module load python
 # module load py-numpy
 # module load py-pandas

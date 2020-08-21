@@ -1,52 +1,53 @@
 options(scipen=999)
 setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/Ranalysis")
-# setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase")
 ################################
 ## collect expression results ##
 ################################
-readKallisto=function(dir="", fileL=c()){
+readRSEM=function(dir="", fileL=c()){
     for ( file in fileL ) {
-        x=read.table(paste0(dir,file), header=TRUE, sep="\t")
-        temp.count <- x[,c("target_id", "est_counts")]
-        temp.tpm  <- x[,c("target_id", "tpm")]
-        nn<- gsub("/abundance.tsv","",file)
+        x <- read.table(paste0(dir,file), header=TRUE, sep="\t")
+        temp.count <- x[,c("gene_id", "expected_count")]
+        temp.rpkm  <- x[,c("gene_id", "FPKM")]
+        nn<- gsub(".genes.results","",file)
         names(temp.count)[2]<-nn
-        names(temp.tpm )[2]<-nn
-        if (!exists("count")) { count<-temp.count } else {count <- merge(count, temp.count, by="target_id")}
-        if (!exists("tpm"))  { tpm <-temp.tpm } else {tpm <- merge(tpm, temp.tpm, by="target_id")}
+        names(temp.rpkm )[2]<-nn
+        if (!exists("count")) { count<-temp.count }
+        else count <- merge(count, temp.count, by="gene_id")
+        if (!exists("rpkm"))  { rpkm <-temp.rpkm }
+        else rpkm <- merge(rpkm, temp.rpkm, by="gene_id")
     }
-    rownames(count)=gsub("[.]1$|^evm.model.","",count$target_id)
+    rownames(count)=gsub("[.]1$|^evm.model.","",count$gene_id)
     count=count[,-1]
     if(length(grep("Gohir.1Z",rownames(count)))>0)
     {count=count[-grep("Gohir.1Z",rownames(count)),]}
-    rownames(tpm)=gsub("[.]1$|^evm.model.","",tpm$target_id)
-    tpm=tpm[,-1]
-    if(length(grep("Gohir.1Z",rownames(tpm)))>0)
-    {tpm=tpm[-grep("Gohir.1Z",rownames(tpm)),]}
+    rownames(rpkm)=gsub("[.]1$|^evm.model.","",rpkm$gene_id)
+    rpkm=rpkm[,-1]
+    if(length(grep("Gohir.1Z",rownames(rpkm)))>0)
+    {rpkm=rpkm[-grep("Gohir.1Z",rownames(rpkm)),]}
     # group 1 to 4, 1 as the lowest expression, 5 the highest
-    tpm$log2mean = apply(tpm,1,function(x)log2(mean(x)+1))
-    breaks=quantile(tpm$log2mean[tpm$log2mean>0], probs=0:4/4)
-    tpm$quantile=cut(tpm$log2mean, breaks, include.lowest=TRUE, labels=FALSE)
-    tpm$quantile[is.na(tpm$quantile)]=0
-    print(table(tpm$quantile))
+    rpkm$log2mean = apply(rpkm,1,function(x)log2(mean(x)+1))
+    breaks=quantile(rpkm$log2mean[rpkm$log2mean>0], probs=0:4/4)
+    rpkm$quantile=cut(rpkm$log2mean, breaks, include.lowest=TRUE, labels=FALSE)
+    rpkm$quantile[is.na(rpkm$quantile)]=0
+    print(table(rpkm$quantile))
     # group 0 as zero expression
-    return(list(count=count,tpm=tpm))
+    return(list(count=count,rpkm=rpkm))
 }
 
 
-## D5 and index ref
-dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/MappingDref/"
-# dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase/MappingDref/"
-all=readKallisto(dir, paste0(list.files(dir, patter="[1-9]$"),"/abundance.tsv") )
+# D5 and index ref
+dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingDref/"
+all=readRSEM(dir, list.files(dir, pattern="genes.results") )
 lapply(all,head)
 count = all$count
-### examine At read portion, SD5-D5-S2 is not diploid
-# colSums(all$count[grep("A$",rownames(count)),])/colSums(all$count)
-#  SD5-A2-S1    SD5-A2-S4    SD5-A2-S5 SD5-A2xD5-S1 SD5-A2xD5-S2 SD5-A2xD5-S3
-# 0.995433426  0.995854953  0.996073544  0.486486164  0.501333588  0.501576854
-#   SD5-D5-S1    SD5-D5-S2    SD5-D5-S3 SD5-Maxxa-S1 SD5-Maxxa-S2 SD5-Maxxa-S3
-# 0.007514745  0.589617932  0.008594063  0.490151552  0.492881564  0.495400658
-
+# examine At/Dt reads
+apply(count,2,function(x)sum(x[grep("A$",rownames(count))])/sum(x[grep("D$",rownames(count))]) )
+# SD5-A2-S1     SD5-A2-S4     SD5-A2-S5  SD5-A2xD5-S1  SD5-A2xD5-S2
+# 164.919130144 190.413925277 185.436921747   0.861339217   0.897694321
+# SD5-A2xD5-S3     SD5-D5-S1     SD5-D5-S2     SD5-D5-S3  SD5-Maxxa-S1
+# 0.882042189   0.006767917   1.031503685   0.007840829   0.889445736
+# SD5-Maxxa-S2  SD5-Maxxa-S3
+# 0.895401699   0.896892824
 # my custom function
 library(ggplot2)
 library(scales)
@@ -75,38 +76,38 @@ plotGrouping <- function(norm_log, color, shape, text, tip, save = "plotGrouping
 
 # plots
 info = data.frame(sample=names(all$count), genome = gsub("SD5-|-S.","",names(all$count)), rep = rep(1:3,rep=4))
-plotGrouping(log2(all$tpm[,1:12]+1), color=info$genome, shape=info$genome, tip=info$sample, text=info$genome, save = "plotGrouping.log2tpm.pdf")
+plotGrouping(log2(all$rpkm[,1:12]+1), color=info$genome, shape=info$genome, tip=info$sample, text=info$genome, save = "plotGrouping.log2rpkm.pdf")
 
 # SD5-D5-S2 turned out to be a polyploid or A2xD5 sample, exclude. Also see: /lss/research/jfw-lab/Projects/Eflen/flowerTimeDataset/command.history.sh
-AD1 = list( count=all$count[,grep("Maxxa",names(count))], tpm = all$tpm[,grep("Maxxa",names(count))] )
-F1 = list( count=all$count[,grep("A2xD5",names(count))], tpm = all$tpm[,grep("A2xD5",names(count))] )
-D5 = list( count=all$count[,grep("SD5-D5-S[1|3]",names(count))], tpm = all$tpm[,grep("SD5-D5-S[1|3]",names(count))] )
-A2 = list( count=all$count[,grep("-A2-",names(count))], tpm = all$tpm[,grep("-A2-",names(count))] )
+AD1 = list( count=all$count[,grep("Maxxa",names(count))], rpkm = all$rpkm[,grep("Maxxa",names(count))] )
+F1 = list( count=all$count[,grep("A2xD5",names(count))], rpkm = all$rpkm[,grep("A2xD5",names(count))] )
+D5 = list( count=all$count[,grep("SD5-D5-S[1|3]",names(count))], rpkm = all$rpkm[,grep("SD5-D5-S[1|3]",names(count))] )
+A2 = list( count=all$count[,grep("-A2-",names(count))], rpkm = all$rpkm[,grep("-A2-",names(count))] )
 # add up At and Dt in diploids
 D5 = lapply(D5,function(x){y=x[grep(".A$",rownames(x)),]+x[grep(".D$",rownames(x)),];rownames(y)=gsub(".A$","",rownames(y));return(y)})
 A2 = lapply(A2,function(x){y=x[grep(".A$",rownames(x)),]+x[grep(".D$",rownames(x)),];rownames(y)=gsub(".A$","",rownames(y));return(y)})
+
 save(all, info, A2, D5, F1, AD1,file="expression.Dref.rdata")
 
-# Individual ref
+## Individual ref
 rm(count)
-rm(tpm)
-dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/MappingIndiv/"
-AD1 = readKallisto(dir, paste0(list.files(dir, pattern="Maxxa.*[1-9]$"),"/abundance.tsv") )
-#    0     1     2     3     4
-#14618 15071 15071 15071 15071
-A2 = readKallisto(dir, paste0(list.files(dir, pattern="-A2-.*[1-9]$"),"/abundance.tsv") )
-#    0     1     2     3     4
-#11396  7586  7586  7585  7586
-D5 = readKallisto(dir, paste0(list.files(dir, pattern="SD5-D5-S[1|3]$"),"/abundance.tsv") )
-#    0     1     2     3     4
-#  7015 7552 7552 7552 7552
-F1 = readKallisto(dir, paste0(list.files(dir, pattern="A2xD5.*[1-9]$"),"/abundance.tsv") )
-#    0     1     2     3     4
-#18766 15049 15049 15049 15049
-lapply(AD1,head)
+dir <- "/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/mappingIndiv/"
+A2 = readRSEM(dir, list.files(dir, pattern="-A2-.*genes.results") )
+#  0     1     2     3     4
+# 12724  7060  7059  7058  7059
+D5 = readRSEM(dir, list.files(dir, pattern="SD5-D5-S[1|3].genes.results") )
+# 0    1    2    3    4
+# 10231  6753  6743  6748  6748
+F1 = readRSEM(dir, list.files(dir, pattern="-A2xD5-.*genes.results") )
+# 0     1     2     3     4
+# 20833 14342 14338 14334 14336
+AD1 = readRSEM(dir, list.files(dir, pattern="-Maxxa-.*genes.results") )
+# 0     1     2     3     4
+# 10599 13779 13742 13757 13759
 lapply(A2,head)
 lapply(D5,head)
 lapply(F1,head)
+lapply(AD1,head)
 save(A2,D5,F1,AD1,file="expression.Indiv.rdata")
 
 
@@ -116,19 +117,20 @@ save(A2,D5,F1,AD1,file="expression.Indiv.rdata")
 
 load("expression.Indiv.rdata")
 checkIndiv=rbind(
-c("Diploids colSums A2/D5",colSums(A2$tpm[,1:3])/c(colSums(D5$tpm[,1:2]),NA)),
-c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:3])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:3])),
-c("F1 colSums A/D",colSums(F1$tpm[grep("Gar",rownames(F1$tpm)),1:3])/colSums(F1$tpm[grep("Gorai",rownames(F1$tpm)),1:3]))
+c("Diploids colSums A2/D5",colSums(A2$rpkm[,1:3])/c(colSums(D5$rpkm[,1:2]),NA)),
+c("AD1 colSums A/D",colSums(AD1$rpkm[grep("A",rownames(AD1$rpkm)),1:3])/colSums(AD1$rpkm[grep("D",rownames(AD1$rpkm)),1:3])),
+c("F1 colSums A/D",colSums(F1$rpkm[grep("A",rownames(AD1$rpkm)),1:3])/colSums(F1$rpkm[grep("D",rownames(AD1$rpkm)),1:3]))
 )
-checkIndiv # F1 A/D =0.8, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
 
 load("expression.Dref.rdata")
 checkDref=rbind(
-c("Diploids colSums A2/D5",colSums(A2$tpm[,1:3])/c(colSums(D5$tpm[,1:2]),NA)),
-c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:3])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:3])),
-c("F1 colSums A/D",colSums(F1$tpm[grep("A",rownames(F1$tpm)),1:3])/colSums(F1$tpm[grep("D",rownames(F1$tpm)),1:3]))
+c("Diploids colSums A2/D5",colSums(A2$rpkm[,1:3])/c(colSums(D5$rpkm[,1:2]),NA)),
+c("AD1 colSums A/D",colSums(AD1$rpkm[grep("A",rownames(AD1$rpkm)),1:3])/colSums(AD1$rpkm[grep("D",rownames(AD1$rpkm)),1:3])),
+c("F1 colSums A/D",colSums(F1$rpkm[grep("A",rownames(AD1$rpkm)),1:3])/colSums(F1$rpkm[grep("D",rownames(AD1$rpkm)),1:3]))
 )
-checkDref # RSEM resulted into A/D < 1, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
+
+checkIndiv # almost equal rpkm Sums of At and Dt in F1 and AD1
+checkDref # RSEM resulted into A/D < 0.9, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
 
 
 #################
@@ -161,7 +163,7 @@ count = cbind(A2$count,D5$count)
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res <- results(DESeq(dds), contrast=c("genome","A2","D5"))
-print( summary(res,alpha=.05) ) # Higher: A 3837 D 4065; RSEM A 3320 D 3848
+print( summary(res,alpha=.05) ) # Higher A 3320, D 3848
 write.table(res, file="DE.A2vsD5.txt",  sep="\t")
 # Get parental expression divergence, test for A=0
 A=res
@@ -172,12 +174,12 @@ rownames(count) =gsub(".A$","",rownames(count))
 names(count)=paste(names(count),c("A","A","A","D","D","D"),sep=".")
 info = data.frame(sample=names(count), genome = c("A","A","A","D","D","D"))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
-colSums(count) # Kallisto assigned roughly equal reads to Dt and At, skipp follows
+colSums(count) # RSEM assigned more reads to Dt than At, skipp follows
 # libTotal = rep(colSums(F1$count),2)
 # libSize = libTotal/mean(libTotal)
 # sizeFactors(dds) = libSize
 res = results(DESeq(dds),contrast=c("genome","A","D"))
-print( summary(res,alpha=.05) ) # Higher: A 2423 D 2773; RSEM A 2084, D 2575
+print( summary(res,alpha=.05) ) # Higher A 2084, D 2575
 write.table(res, file="DE.F1.AtvsF1.Dt.txt",  sep="\t")
 # Get allelic expression divergence in F1, test for B=0
 B=res
@@ -193,7 +195,7 @@ colSums(count)
 #libSize = libTotal/mean(libTotal)
 #sizeFactors(dds) = libSize
 res = results(DESeq(dds),contrast=c("genome","A","D"))
-print( summary(res,alpha=.05) ) # Higher: A 3048 D 3270; RSEM A 2678, D 3209
+print( summary(res,alpha=.05) ) # Higher A 2678, D 3209
 write.table(res, file="DE.AD1.AtvsAD1.Dt.txt",  sep="\t")
 # homoeolog expression divergence in polyploid, test for Bp=0
 Bp=res
@@ -203,7 +205,7 @@ count = cbind(F1$count,AD1$count)
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","Maxxa","A2xD5"))
-print( summary(res,alpha=.05) ) # higher: AD1 5037, F1 7377; RSEM AD1 4047, F1 6389
+print( summary(res,alpha=.05) ) # higher AD1 4047, F1 6389
 write.table(res, file="DE.AD1vsF1.txt",  sep="\t")
 # differential expression by genome doubling
 W =res
@@ -258,7 +260,7 @@ count = total[,grep("A2xD5|mid",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","A2xD5","mid"))
-print( summary(res,alpha=.05) ) # higher: F1 5532 Mid 4658; RSEM F1 5071, Mid 4260
+print( summary(res,alpha=.05) ) # higher F1 5071, Mid 4260
 write.table(res, file="DE.F1vsMid.txt",  sep="\t")
 # differential expression by genome doubling
 F1vsMid =res
@@ -268,7 +270,7 @@ count = total[,grep("Maxxa|mid",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","Maxxa","mid"))
-print( summary(res,alpha=.05) ) # higher: AD1 5622, Mid 5795; RSEM AD1 4822, Mid 4864
+print( summary(res,alpha=.05) ) # higher AD1 4822, Mid 4864
 write.table(res, file="DE.AD1vsMid.txt",  sep="\t")
 # differential expression by genome doubling
 AD1vsMid =res
@@ -278,7 +280,7 @@ count = total[,grep("A2xD5|-A2-",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","A2xD5","A2"))
-print( summary(res,alpha=.05) ) # higher: F1 4440, A2 3050; RSEM F1 4153, A2 2783
+print( summary(res,alpha=.05) ) # higher F1 4153, A2 2783
 write.table(res, file="DE.F1vsA2.txt",  sep="\t")
 # differential expression by genome doubling
 F1vsA2 =res
@@ -288,7 +290,7 @@ count = total[,grep("Maxxa|-A2-",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","Maxxa","A2"))
-print( summary(res,alpha=.05) ) # higher AD1 3903, A2 3437; RSEM AD1 3297, A2 2740
+print( summary(res,alpha=.05) ) # higher AD1 3297, A2 2740
 write.table(res, file="DE.AD1vsA2.txt",  sep="\t")
 # differential expression by genome doubling
 AD1vsA2 =res
@@ -299,7 +301,7 @@ count = total[,grep("A2xD5|-D5-",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","A2xD5","D5"))
-print( summary(res,alpha=.05) ) # higher RSEM F1 2491, D5 1208
+print( summary(res,alpha=.05) ) # higher F1 2491, D5 1208
 write.table(res, file="DE.F1vsD5.txt",  sep="\t")
 # differential expression by genome doubling
 F1vsD5 =res
@@ -309,7 +311,7 @@ count = total[,grep("Maxxa|-D5-",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","Maxxa","D5"))
-print( summary(res,alpha=.05) ) # higher RSEM AD1 2087, D5 2080
+print( summary(res,alpha=.05) ) # higher AD1 2087, D5 2080
 write.table(res, file="DE.AD1vsD5.txt",  sep="\t")
 # differential expression by genome doubling
 AD1vsD5 =res
@@ -319,7 +321,7 @@ count = total[,grep("mid|-A2-",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","mid","A2"))
-print( summary(res,alpha=.05) ) # higher RSEM Mid 4438, A2 2383
+print( summary(res,alpha=.05) ) # higher Mid 4438, A2 2383
 write.table(res, file="DE.MidvsA2.txt",  sep="\t")
 # differential expression by genome doubling
 MidvsA2 =res
@@ -330,7 +332,7 @@ count = total[,grep("mid|-D5-",names(total))]
 info = data.frame(sample=names(count), genome = gsub("SD5-|-S.*","",names(count)))
 dds <- DESeqDataSetFromMatrix( countData = round(count,0), colData =info, design = ~ genome)
 res = results(DESeq(dds),contrast=c("genome","mid","D5"))
-print( summary(res,alpha=.05) ) # higher RSEM Mid 2755, D5 1546
+print( summary(res,alpha=.05) ) # higher Mid 2755, D5 1546
 write.table(res, file="DE.MidvsD5.txt",  sep="\t")
 # differential expression by genome doubling
 MidvsD5 =res
@@ -372,7 +374,7 @@ plot( B[,"log2FoldChange"], Bp[,"log2FoldChange"],pch=".",main="log2 Fold Change
 lines(c(-6,6),c(-6,6),col="blue")
 plot( W[grep("A$",rownames(W)),"log2FoldChange"], W[grep("D$",rownames(W)),"log2FoldChange"],pch=".",main="log2 Fold Change",xlab="W.At",ylab="W.Dt")
 lines(c(-6,6),c(-6,6),col="blue")
-plot( W[grep("A$",rownames(W)),"log2FoldChange"], W[grep("D$",rownames(W)),"log2FoldChange"],pch=".",main="log2 Fold Change",xlab="W.At",ylab="W.Dt")
+plot( F1[grep("A$",rownames(W)),"log2FoldChange"], W[grep("D$",rownames(W)),"log2FoldChange"],pch=".",main="log2 Fold Change",xlab="W.At",ylab="W.Dt")
 lines(c(-6,6),c(-6,6),col="blue")
 plot( F1vsA2[,"log2FoldChange"], F1vsD5[,"log2FoldChange"],pch=".",main="log2 Fold Change")
 lines(c(-6,6),c(-6,6),col="blue")
@@ -547,7 +549,7 @@ res=cbind(res, effect[,-c(1:6)])
 
 # make plots
 sumT =  rbind(c("Regulation Pattern","Measure","A","D"),
-c("Diploid divergence, A2vsD5", "A", getSig(A,direction="up"), getSig(A,direction="down")),
+c("Diploid divergence, F1", "A", getSig(A,direction="up"), getSig(A,direction="down")),
 c("Homoeolog bias, F1", "B", getSig(B,direction="up"), getSig(B,direction="down")),
 c("Homoeolog bias, AD1", "Bp", getSig(Bp,direction="up"), getSig(Bp,direction="down")),
 c("Hybridization effect direction", "Hr", length(grep("Hr>0",res$Hr.reg)), length(grep("Hr<0",res$Hr.reg))),
@@ -667,8 +669,6 @@ pdf("plotRegSummary.pdf")
 textplot(sumTbl,cex=0.6)
 dev.off()
 
-----
-
 # restrict to Orthpolog groups
 ogQ<-read.table("../../orthohomoeologQuadruplets101218.txt", sep="\t", header=TRUE)
 head(ogQ)
@@ -705,16 +705,16 @@ hmcol <- colorRampPalette(brewer.pal(9, "GnBu"))(100)
 for(cat in levels(factor(res$category))[1:5] ){
     print(cat)
     select = which(res$category ==cat)
-    # tpm expression of A2, D5, F1.At, F1.Dt, AD1.At, AD2.Dt
-    tpm = cbind(A2$tpm[,1:3],D5$tpm[,1:2],F1$tpm[grep("A$",rownames(F1$tpm)),1:3],F1$tpm[grep("D$",rownames(F1$tpm)),1:3],AD1$tpm[grep("A$",rownames(AD1$tpm)),1:3],AD1$tpm[grep("D$",rownames(AD1$tpm)),1:3])
-    info = data.frame(sample=names(tpm), species = gsub("SD5-|-S.","",names(tpm)), ploidy=c(rep("diploid",5), rep("F1",6),rep("AD1",6)), genome =c(rep("A",3),rep("D",2),rep(c("A","D"),each=3,2)) )
+    # rpkm expression of A2, D5, F1.At, F1.Dt, AD1.At, AD2.Dt
+    rpkm = cbind(A2$rpkm[,1:3],D5$rpkm[,1:2],F1$rpkm[grep("A$",rownames(F1$rpkm)),1:3],F1$rpkm[grep("D$",rownames(F1$rpkm)),1:3],AD1$rpkm[grep("A$",rownames(AD1$rpkm)),1:3],AD1$rpkm[grep("D$",rownames(AD1$rpkm)),1:3])
+    info = data.frame(sample=names(rpkm), species = gsub("SD5-|-S.","",names(rpkm)), ploidy=c(rep("diploid",5), rep("F1",6),rep("AD1",6)), genome =c(rep("A",3),rep("D",2),rep(c("A","D"),each=3,2)) )
     info$id = paste(info$sample,info$origin,sep=".")
-    names(tpm) =info$id
+    names(rpkm) =info$id
     # head annotation
     ha = HeatmapAnnotation(df = info[,c("ploidy","genome")], col = list(ploidy=structure(brewer.pal(3, "Set2"), names = c("diploid","F1","AD1")),genome=c("A"="pink","D"="royalblue")))
-    # heatmap of log2tpm, not scaled
-    hm.tpm=Heatmap(as.matrix(log2(tpm[select,]+1)), name = "log2tpm",col = hmcol, cluster_column = FALSE, top_annotation = ha,  top_annotation_height = unit(4, "mm"),column_title = "log2tpm", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = FALSE)
-    # hm.tpm
+    # heatmap of log2rpkm, not scaled
+    hm.rpkm=Heatmap(as.matrix(log2(rpkm[select,]+1)), name = "log2rpkm",col = hmcol, cluster_column = FALSE, top_annotation = ha,  top_annotation_height = unit(4, "mm"),column_title = "log2rpkm", column_title_gp = gpar(fontsize = 10), row_title_gp = gpar(fontsize = 10), show_row_names = FALSE, show_column_names = FALSE)
+    # hm.rpkm
     
     # log2(A/D) ratios of A, B, Bp
     log2ratio = data.frame(A = res$A, B = res$B, Bp = res$Bp)
@@ -742,7 +742,7 @@ for(cat in levels(factor(res$category))[1:5] ){
     # hm.impact
     
     pdf(paste0("plotCH.",cat,".pdf"))
-    draw(hm.tpm+hm.ratio+hm.ct+hm.impact, newpage = TRUE, column_title = "Gene regulatory divergence", column_title_gp = gpar(fontsize = 12, fontface = "bold"), heatmap_legend_side = "bottom")
+    draw(hm.rpkm+hm.ratio+hm.ct+hm.impact, newpage = TRUE, column_title = "Gene regulatory divergence", column_title_gp = gpar(fontsize = 12, fontface = "bold"), heatmap_legend_side = "bottom")
     dev.off()
 }
 ### hard to make sense

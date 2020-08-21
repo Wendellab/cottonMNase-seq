@@ -79,9 +79,12 @@ writeGff <- function (df, outpath)
 # prepare loop
 genomes =c("AD1","F1","A2","D5")
 tags=c("M","F","A","D")
-dirs = c("mappingMnew","mappingF","mappingA_new","mappingD")
-txdbs=c("refGenomes/txdb.TM1saski.sqlite","refGenomes/txdb.F1.sqlite","refGenomes/txdb.A2du.sqlite","refGenomes/txdb.D5.sqlite")
-outdir="nucleosome/"
+dirs = c("mappingM_UTX","mappingF2020","mappingA_WHU","mappingD")
+txdbs=c("refGenomes/txdb.AD1utx.sqlite","refGenomes/txdb.F2020.sqlite","refGenomes/txdb.A2WHU.sqlite","refGenomes/txdb.D5.sqlite")
+outdir="Nucleosome/"
+#dirs = c("mappingMnew","mappingF","mappingA_new","mappingD")
+#txdbs=c("refGenomes/txdb.TM1saski.sqlite","refGenomes/txdb.F1.sqlite","refGenomes/txdb.A2du.sqlite","refGenomes/txdb.D5.sqlite")
+#outdir="nucleosome/"
 for(i in 1:4)
 {
     genome = genomes[i]
@@ -177,6 +180,6 @@ for(i in 1:4)
     
 }
 
-q()
-n
+q("no")
+
 

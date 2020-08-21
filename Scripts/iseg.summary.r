@@ -24,9 +24,9 @@ sl
 nonzero
 
 # after normalization, check "manifest.txt"
-# MAD= 0.3038
+# MAD= 0.0273
 # SD = 1.4826 * MAD
-SD=0.045071
+SD=0.040475
 
 ## plot function
 log10hist <- function(x, main = filePath, xlab="",breaks = "Sturges")
@@ -37,12 +37,13 @@ log10hist <- function(x, main = filePath, xlab="",breaks = "Sturges")
 }
 
 ## prepare working list
-# previous version
+# reading iseg output would generate some warnings, just ignore
 # fileL = grep("Fus.txt",list.files("iseg/"),value=TRUE)
 # v1.3.2
-# reading iseg output would generate some warnings, just ignore
-filedir = "isegRes/isegv1.3.2_032519/"
-fileL = grep("0.txt",list.files(filedir),value=TRUE)
+# filedir = "isegRes/isegv1.3.2_032519/"
+# v1.3.4
+filedir = "isegRes/iseg_v1.3.4_062020/"
+fileL = grep("bc.*txt",list.files(filedir),value=TRUE)
 
 ## loop import and report stats for each flag
 flags = unique(gsub("_.*","",fileL))
@@ -55,21 +56,21 @@ for(flag in flags){
     res.peak = data.frame(ChrName=names(sl[[flag]]), Length = sl[[flag]], Chromosome = 1:length(sl[[flag]]))
     # loop each file
     for(file in flagFiles){
-        bc = gsub(".*bc|[.].*","",file)
+        bc = gsub(".*bc|[.]txt","",file)
         # read into grange
         filePath = paste0(filedir,file)
         gr = readGeneric(file=filePath, chr = 1, start = 2, end = 3, strand = NULL, meta.col=list(height=4,tstat=5,pvalue=6), sep=" ")
         gr$pvalue=fread(filePath,sep=" ",select=6)$V6
         gr$dns = ifelse(gr$height>0,"MSF","MRF")
-        ## Region bps called as peaks
-        sRegion = data.frame(tapply(width(gr), list(seqnames(gr), gr$dns),sum))
-        names(sRegion) =paste0(names(sRegion),".bc",bc)
-        ## Proportion of regions called
-        pRegion = sweep(sRegion,1, nonzero[[flag]],"/")
         ## reduce range to count peaks
         s =reduce(gr[gr$dns=="MSF"]); s$dns = "MSF"
         r =reduce(gr[gr$dns=="MRF"]); r$dns = "MRF"
         rgr = c(s,r)
+        ## Region bps called as peaks
+        sRegion = data.frame(tapply(width(rgr), list(seqnames(rgr), rgr$dns),sum))
+        names(sRegion) =paste0(names(sRegion),".bc",bc)
+        ## Proportion of regions called
+        pRegion = sweep(sRegion,1, nonzero[[flag]],"/")
         ## number of peaks
         nPeaks = data.frame(tapply(as.character(seqnames(rgr)), list(seqnames(rgr), rgr$dns),length))
         names(nPeaks) =paste0(names(nPeaks),".bc",bc)
@@ -100,7 +101,7 @@ for(flag in flags){
         # sort rgr
         srgr = sort(rgr)
         # to bed
-        df <- data.frame(seqnames=seqnames(srgr), starts=start(srgr), ends=end(srgr), names="Peak", scores=0, strands="+", starts=start(srgr), ends=end(srgr), color = ifelse(srgr$dns=="MSF", "20,20,255","255,20,20"))
+        df <- data.frame(seqnames=seqnames(srgr), starts=start(srgr)-1, ends=end(srgr), names="Peak", scores=0, strands="+", starts=start(srgr), ends=end(srgr), color = ifelse(srgr$dns=="MSF", "20,20,255","255,20,20"))
         write.table(df, file=paste0(filedir,gsub(".txt","",file),".Fus.bed"), quote=F, sep="\t", row.names=F, col.names=F)
     }
     
