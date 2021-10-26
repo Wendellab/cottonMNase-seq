@@ -1,22 +1,10 @@
-# Data analysis of external datasets 
+# Data analysis of other datasets 
 
 ## TE annotation
 
 The [EDTA](https://github.com/oushujun/EDTA) pipeline was used to perform high-quality and consistentl TE annotation for three cotton genome reference genomes: **D5** ~800Mb, the smallest and highest quality assembly [lss](/work/LAS/jfw-lab/genomes/D5/Dgenome2_13.fasta) [ftp](ftp://ftp.bioinfo.wsu.edu/species/Gossypium_raimondii/JGI_221_G.raimondii_Dgenome/assembly/G.raimondii_JGI_221_v2.0.assembly.fasta.gz). **A2** ~1600Mb [lss](/lss/research/jfw-lab/GenomicResources/archived_resources/gmapdb/A2Du2018/1.PacBio-Gar-Assembly-v1.0/G.arboreum.Chr.v1.0.fasta.gz) [ftp](ftp://ftp.bioinfo.wsu.edu/species/Gossypium_arboreum/CRI-Updated_G.arboreum_A2genome/assembly/G.arboreum_CRI-A2_assembly_v1.0.fasta.gz). **AD1** ~2200 Mb [lss](/lss/research/jfw-lab/GenomicResources/archived_resources/AD1Saski/assembly/Ghirsutum_458_v1.0.fa.gz) [ftp](ftp://ftp.bioinfo.wsu.edu/species/Gossypium_hirsutum/Tx-JGI_G.hirsutum_AD1genome/assembly/Tx-JGI_G.hirsutum_v1.1.fa.gz)
 
-Two versions were generated - v091919 and v111519 
-
-* EDTA.TE.fa.stat.all.sum
-* EDTA.TE.fa.stat.nested.sum - different sized features
-* EDTA.TE.fa.stat.redun.sum - same sized features
-* **EDTA.TEanno.gff** - likely fragmented
-* EDTA.TEanno.out - RM format
-* EDTA.TElib.fa
-* Helitron.intact.fa
-* LTR.intact.fa
-* intact.fa.gff3
-* TIR.intact.fa
-* TIR.intact.fa.gff
+Two previous versions (v091919 and v111519) were generated, and the latest one is **v010621** which conducted TE and panTE annotation for a total of 15 available *Gossypium* reference genomes.
 
 ## Genomic annotation
 

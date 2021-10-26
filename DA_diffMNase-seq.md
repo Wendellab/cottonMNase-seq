@@ -9,7 +9,8 @@
 
 **Scripts**
 
-- [runTrimGalore.sh](Scripts/runTrimGalore.sh) for quality trimming and sequence adaptors removal.
+- [runTrimGalo
+- [re.sh](Scripts/runTrimGalore.sh) for quality trimming and sequence adaptors removal.
 - [runBowtie2.D.sh](Scripts/runBowtie2.D.sh) is an example for Bowtie2 mapping against the D-genome reference, which needs to be moditified for different reference genome used.
 - [repBam2Bed.r](Scripts/repBam2Bed.r) converted mapping results BAM to BED files and pooled replicates.
 - [iseg.pre.r](Scripts/iseg.pre.r), [iseg.run.r](Scripts/iseg.run.r) and [iseg.summary.r](Scripts/iseg.summary.r) performed L-H and iSeg analysis and summary.
@@ -250,15 +251,15 @@ Noting the differences in MAD between genomes (see "sumMDS.txt"), quantile norma
 
 The raw segmentation output file contains 6 columns: chr, start, end, height, t-stat, p-value. Use script [iseg.summary.r](Scripts/iseg.summary.r) to generate some summary plots, including the number, size and distribution of detected segments, and output BED format. This can also be done using the iSeg python wrapper version.
 
-**Summary**: IGV visualization of BED outputs revealed relatively consistent segmentation profiles by different versions of iSeg (v1.3.4, v1.3.2, and v180809b). Shown in [DNS_iSegSummary.xlsx](DNS_iSegSummary060520.xlsx), BC6 or BC6.5 produced ~1% of MSFs and MRFs each and will used for following analysis. 
+**Summary**: IGV visualization of BED outputs revealed relatively consistent segmentation profiles by different versions of iSeg (v1.3.4, v1.3.2, and v180809b). Shown in [DNS_iSegSummary.xlsx](DNS_iSegSummary060520.xlsx), BC6 or BC6.5 produced ~1% of MSFs and MRFs each and will used for following analysis. As suggested by Parvathaneni GB 2020, MACS2 peak calling may be used to validate iSeg results, using the light digest as “treatment” and heavy digest as “control”, and parameters “– nolamda –q 0.01” [dns.runMacs2.sh](Scripts/dns.runMacs2.sh). Using the chosen BC=6.0 on D5 DNS data, iSeg identified only 10% regions called by MACS2, much lower than >90% in maize with bc2. 
 
-###3.2 Analysis of small fragments under light digestion
+###  3.2 Analysis of small fragments under light digestion
 
 In additional to MSFs, the smaller (0-130 bp) fragments from light digestion was shown to represent the accesible regions bound by subnucleosomal particles, such as TFs in maize. Therefore, the scores of Subnucleosomal Particle Occupancy (SPO) were calculated and also used to identify accesible regions by script [spo.r](Scripts/spo.r). Shown in [SPO_iSegSummary.xlsx](SPO_iSegSummary060520.xlsx), BC6 or BC6.5 produced ~1% of footprints and will used for following analysis. 
 
-### 3.2 Genomic annotation of segments
+### 3.3 Genomic annotation of segments
 
-Genomic annotation includes gene annotation downloaded with genome assembly and transposable element annotation conducted by Shunjun Ou using the the [EDTA](https://github.com/oushujun/EDTA) pipeline. These annation GFFs were converted to txDB in R using [makeTxDb.r](Scripts/makeTxDb.r).
+Genomic annotation includes gene annotation downloaded with genome assembly and transposable element (TE) annotation conducted by Shunjun Ou using the the [EDTA](https://github.com/oushujun/EDTA) pipeline. These annation GFFs were converted to txDB in R using [makeTxDb.r](Scripts/makeTxDb.r).
 
 Use ChIPseeker for peak annotation with [segAnno.r](Scripts/segAnno.r): 
 
@@ -268,7 +269,7 @@ Use ChIPseeker for peak annotation with [segAnno.r](Scripts/segAnno.r):
 
 Other peak annotation tools include seqMINER, HTSeq, [ngsplot](https://github.com/shenlab-sinai/ngsplot)
 
-### 3.3 Motif discovery and fuctional annotation of segements
+### 3.4 Motif discovery and fuctional annotation of segements
 
 
 ## 4. Nucleosome positioning analysis

@@ -5,13 +5,12 @@
 
 1. [How are various chromatin features compared with each other and in associated with gene expression?](#1-Inspect various chromatin features)
 2. [Do different approaches - DNS, SPO, and ATAC provide a conserved view of chromatin assessiblity?](#2-Compare different profiles of chromatin accessibility)
-3.  
+
 
 **Polyploidy Questions** 
 
-3. [How does allopolyploidy alter chromatin architecture?](#3-Compare chromatin profiles between diploid and polyploid cotton)
-   * [Characterize and compare chromatin structure profiles over]
-4. How does the alternation of chromatin structure drive gene expression evolution?]()
+3. [How does allopolyploidy alter chromatin architecture, in terms of nucleosome origanization and chromatin accessibility?](#3-Compare chromatin profiles between diploid and polyploid cotton)
+4. [How does the alternation of chromatin structure drive gene expression evolution?](#4-Associate chromatin profiles with duplicated gene expression patterns)
 
 ## 1. Inspect various chromatin features
 
@@ -20,10 +19,10 @@ Use [Qregulation1.r](scripts/Qregulation1.r) to conduct following analyses:
 * Assemble various chromatin feature profiles that were preprocessed from [differential MNase-seq](DA_diffMNase-seq.md) (heavy and light nucleosome occupancy, DNS, SPO, nucleosome positioning) and [ATAC-seq](DA_otherDatasets.md)
 * Plot Pearson/Spearman correlations and plot PCA
 * Aggregate profiles on gene regions (scaled gene body, TSS, TES) relative to expression levels
-* TO-DO: Aggregate profiles on TE regions
-* TO-DO: Aggregate NP over 3 ACR categories for DNS and SPO each.
+* Aggregate profiles on Gypsy regions
+* _TO-DO: Aggregate NP over 3 ACR categories for DNS and SPO each_.
 
-##2. Compare different profiles of chromatin accessibility
+## 2. Compare different profiles of chromatin accessibility
 
 Use [Qregulation2.r](scripts/Qregulation2.r) to conduct following analyses in D5 genome:
 
@@ -32,19 +31,21 @@ Use [Qregulation2.r](scripts/Qregulation2.r) to conduct following analyses in D5
 
 ## 3. Compare chromatin profiles between diploid and polyploid cotton
 
-A vs D at different polyploid levels - diploid, F1, and AD1.
+Examine hybridization and allopolyploidization effects: diploid A2/D5 vs F1 vs AD1.
 
+0. TE composition [TE.r](scripts/TE.r): compare TE compositions, TE insertion relative to genes, Gypsy relative to more detailed genic structure。What percentages of the genome are covered by gene and TEs? What are the frequency of different TE categories in gene vicinity? What are the frequency of genes in TE vicinity? 
 1. Nucleosome organization [nuc.post.r](scripts/nuc.post.r):  constrast the genome coverages, nucleosome repeat link lengths for observed and predicted nucleosome position (observed Well/Fuzzy categorization)
 2. Accessible chromatin regions [ACR.r](scripts/ACR.r): marginal comparison of ACR categorization (DNS, SPO, DNase-seq);  ChIPseeker genomic annotation for pACR and gACR (DNS); Peak overlaps for A2 vs F1.At and D5 vs F1.Dt
-3. 3D genome organization [hic.r](scripts/hic.r): 
+3. Differential accessibility analysis [diffACRs_csaw_AD1ref.r](scripts/diffACRs_csaw_AD1ref.r) and [diffACRs_csaw_F1ref.r](scripts/diffACRs_csaw_F1ref.r) : diffbind-like vs csaw methods
+4. 3D genome organization [hic.r](scripts/hic.r): 
 
-* 
 
----
 
-**TO-DO**
+## 4. Associate chromatin profiles with duplicated gene expression patterns
 
-1. 
+Use [Qregulation4.r](scripts/Qregulation4.r) to conduct following analyses:
+
+* Examine promoter DNS profiles in association with B, Bp, Hr, Wr, and Pr
 
 ---
 
