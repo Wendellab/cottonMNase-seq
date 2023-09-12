@@ -11,6 +11,7 @@
 
 3. [How does allopolyploidy alter chromatin architecture, in terms of nucleosome origanization and chromatin accessibility?](#3-Compare chromatin profiles between diploid and polyploid cotton)
 4. [How does the alternation of chromatin structure drive gene expression evolution?](#4-Associate chromatin profiles with duplicated gene expression patterns)
+5. [How to demonstrate the mechanistics of expression regulatory control using actual examples?](#5-Identify cases to demonstrate mechaistics)
 
 ## 1. Inspect various chromatin features
 
@@ -35,17 +36,32 @@ Examine hybridization and allopolyploidization effects: diploid A2/D5 vs F1 vs A
 
 0. TE composition [TE.r](scripts/TE.r): compare TE compositions, TE insertion relative to genes, Gypsy relative to more detailed genic structure。What percentages of the genome are covered by gene and TEs? What are the frequency of different TE categories in gene vicinity? What are the frequency of genes in TE vicinity? 
 1. Nucleosome organization [nuc.post.r](scripts/nuc.post.r):  constrast the genome coverages, nucleosome repeat link lengths for observed and predicted nucleosome position (observed Well/Fuzzy categorization)
-2. Accessible chromatin regions [ACR.r](scripts/ACR.r): marginal comparison of ACR categorization (DNS, SPO, DNase-seq);  ChIPseeker genomic annotation for pACR and gACR (DNS); Peak overlaps for A2 vs F1.At and D5 vs F1.Dt
+2. Accessible chromatin regions [ACR.r](scripts/ACR.r): marginal comparison of ACR categorization (DNS, SPO, DNase-seq);  ChIPseeker genomic annotation for pACR and gACR (DNS); Peak overlaps for A2 vs F1.At and D5 vs F1.Dt.
 3. Differential accessibility analysis [diffACRs_csaw_AD1ref.r](scripts/diffACRs_csaw_AD1ref.r) and [diffACRs_csaw_F1ref.r](scripts/diffACRs_csaw_F1ref.r) : diffbind-like vs csaw methods
-4. 3D genome organization [hic.r](scripts/hic.r): 
+4. [TE-ACR.r](scripts/TE-ACR.r) examines TE-derived ACRs，
+5. 3D genome organization [hic.r](scripts/hic.r): 
 
 
 
 ## 4. Associate chromatin profiles with duplicated gene expression patterns
 
-Use [Qregulation4.r](scripts/Qregulation4.r) to conduct following analyses:
+Examine promoter DNS and DA profiles in association with B, Bp, Hr, Wr, and Pr
 
-* Examine promoter DNS profiles in association with B, Bp, Hr, Wr, and Pr
+* Use [Qregulation4.sh](scripts/Qregulation4.sh) to prepare MNase-seq mapping results to BigWig files for aggregation plots: normalization RPGC vs RPKM; ref genome A2+D5 vs AD1
+* Use [Qregulation4.r](scripts/Qregulation4.r) to analyze DNS and DA patterns by expression categories.
+
+Motif discovery and enrichment analysis of 1KB promoters [motif_analysis.md](motif_analysis.md)
+
+
+
+## 5. Identify cases to demonstrate mechanistics
+
+Use actual expression to visualize the regulatory mechanistics involving TE composition, ACR, motif, and duplicated expression patterns 
+
+* Identify cases by putting evidence together  [Qregulation5.r](scripts/Qregulation5.r)
+* IGV visualization
+
+
 
 ---
 

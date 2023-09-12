@@ -1,6 +1,9 @@
 # prepare BW for comparison
+module load py-deeptools
 
 cd /work/LAS/jfw-lab/hugj2006/cottonLeaf
+
+# BigWig files generated for iSeg
 ls -lh isegRes/*bg
 #isegRes/A6Dn_q20_chr.size_w20_qnorm_qnorm.bg  isegRes/FcD_q20_chr.size_w20_qnorm_qnorm.bg
 #isegRes/DcD_q20_chr.size_w20_qnorm_qnorm.bg   isegRes/McDa_q20_chr.size_w20_qnorm_qnorm.bg
@@ -14,13 +17,13 @@ cat <(sed 's/Chr/A/' isegRes/A6Dn_q20_chr.size_w20_qnorm_qnorm.bg)  <(sed 's/Chr
 ../tools/kent/bedGraphToBigWig isegRes/ScD_q20_chr.size_w20_qnorm_qnorm.bg mappingF2020/chr.size.txt Qregulation4/ScD_q20_chr.size_w20_qnorm_qnorm.bw
 ../tools/kent/bedGraphToBigWig isegRes/FcD_q20_chr.size_w20_qnorm_qnorm.bg mappingF2020/chr.size.txt Qregulation4/FcD_q20_chr.size_w20_qnorm_qnorm.bw
 ../tools/kent/bedGraphToBigWig isegRes/McD_q20_chr.size_w20_qnorm_qnorm.bg mappingM_UTX/chr.size.txt Qregulation4/McD_q20_chr.size_w20_qnorm_qnorm.bw
-
+#
 ../tools/kent/bedGraphToBigWig isegRes/A6Dn_q20_chr.size_w20_qnorm_qnorm.bg mappingA_WHU/chr.size.txt Qregulation4/A6Dn_q20_chr.size_w20_qnorm_qnorm.bw
 ../tools/kent/bedGraphToBigWig isegRes/DcD_q20_chr.size_w20_qnorm_qnorm.bg mappingD/chr.size.txt Qregulation4/DcD_q20_chr.size_w20_qnorm_qnorm.bw
-
+#
 ../tools/kent/bedGraphToBigWig isegRes/FcDa_q20_chr.size_w20_qnorm_qnorm.bg mappingA_WHU/chr.size.txt Qregulation4/FcDa_q20_chr.size_w20_qnorm_qnorm.bw
 ../tools/kent/bedGraphToBigWig isegRes/FcDd_q20_chr.size_w20_qnorm_qnorm.bg mappingD/chr.size.txt Qregulation4/FcDd_q20_chr.size_w20_qnorm_qnorm.bw
-
+#
 ../tools/kent/bedGraphToBigWig isegRes/McDa_q20_chr.size_w20_qnorm_qnorm.bg mappingA_WHU/chr.size.txt Qregulation4/McDa_q20_chr.size_w20_qnorm_qnorm.bw
 ../tools/kent/bedGraphToBigWig isegRes/McDd_q20_chr.size_w20_qnorm_qnorm.bg mappingD/chr.size.txt Qregulation4/McDd_q20_chr.size_w20_qnorm_qnorm.bw
 
@@ -35,17 +38,7 @@ conda install -c bioconda deeptools
 Collecting package metadata (current_repodata.json): done
 
 
-#
-module purge
-ml py-pybigwig/0.3.4-py3-sgh7lsu
-#
-ml python/3.6.3-u4oaxsb py-pip/9.0.1-py3-dpds55c py-numpy/1.15.2-py3-i2pxd4u
-pip3 install deeptools --user
-
-deeptoolsintervals
-
-ml py-deeptools
-
+# All mapped against A2+D5, generate BigWig from BAM using deeptools
 ## Need A2 and D5 reads both mapped to F1 reference, normalized for direct comparison
 ml samtools
 # H
@@ -99,7 +92,7 @@ bamCoverage -b A6Ln_q20.f.sort.bam -o A6Ln_q20.full.bw --binSize 20 --normalizeU
 bigwigCompare -b1 A6Ln_q20.full.bw -b2 A6Hn_q20.full.bw -o A6Dn_q20.full.bw --ratio subtract
 
 
-##  Need F1 and AD1 reads both mapped to AD1 reference, Wr
+##  All mapped against AD1, generate BigWig from BAM using deeptools
 ###### RPKM #####
 cd /work/LAS/jfw-lab/hugj2006/cottonLeaf/Qregulation_diffACRs/AD1ref/mapping
 #
@@ -151,3 +144,32 @@ bigwigCompare -b1 M1D_q20.full.bw -b2 M2D_q20.full.bw -o McD_q20.full.bw --ratio
 #
 mkdir bwRPGC
 rm *bw
+
+#
+cd /work/LAS/jfw-lab/hugj2006/cottonLeaf/Qregulation_diffACRs/AD1ref/mapping
+# combine normalized A and D
+for file in $(ls *bam |grep '^A.*n')
+do
+  echo $file
+  bamCoverage -b $file -o ${file/[.]*/}.full.bw --binSize 20 -p 4 --normalizeTo1x 1445290955
+done
+#
+for file in $(ls *bam |grep '^D')
+do
+  echo $file
+  bamCoverage -b $file -o ${file/[.]*/}.full.bw --binSize 20 -p 4 --normalizeTo1x 836327675
+done
+#
+bigwigCompare -b1 D1L_q20.full.bw -b2 D1H_q20.full.bw -o D1D_q20.full.bw --ratio subtract
+bigwigCompare -b1 D2L_q20.full.bw -b2 D2H_q20.full.bw -o D2D_q20.full.bw --ratio subtract
+#
+bigwigCompare -b1 D1D_q20.full.bw -b2 D2D_q20.full.bw -o bwRPGC/DcD_q20.full.bw --ratio mean
+#
+bigwigCompare -b1 A6Ln_q20.full.bw -b2 A6Hn_q20.full.bw -o bwRPGC/A6Dn_q20.full.bw --ratio subtract
+#
+bigwigCompare -b1 bwRPGC/A6Dn_q20.full.bw -b2 bwRPGC/DcD_q20.full.bw -o bwRPGC/ScD_q20.full.bw --ratio add
+
+
+# remove Dt mapped reads
+# samtools view -b $file A01 A02 A03 A04 A05 A06 A07 A08 A09 A10 A11 A12 A13 >{file/[.]*/}_rn.bam
+#  samtools view -H $file |grep -v 'SN:D' | samtools reheader - {file/[.]*/}_rn.bam > ${file/[.]*/}_rn.bam

@@ -326,6 +326,12 @@ library(GenomicFeatures)
 
 setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/Qregulation_diffACRs/Fref")
 bl =GRanges("D01", IRanges(23162000, 23820000))
+# specify paired-end BAMs from F1 and AD1
+bam.files=grep("A6H_|a_|d_",list.files(patter="sort.bam$"),invert=T,value=T)
+# bam.files=grep("F|M",list.files("mapping",patter="sort.bam$",full.names=T),value=T)
+df=data.frame(BAM=bam.files, genome=substring(bam.files,1,1),digestion=substring(bam.files,3,3))
+df
+
 
 # input identified ACRs
 load("../../Qregulation3/ACRsC.rdata"); ACR.D5
@@ -343,21 +349,6 @@ F1d=F1d[-queryHits(h)] # from 224483 to 223126
 
 # define concensus peakset
 peaks=list(A = union(A2,F1a),D=union(D5,F1d))
-
-# input promoters: 2kb upstream of TSS
-### import genome annotation
-txdb <- loadDb("../../refGenomes/txdb.F2020.sqlite")
-gns= genes(txdb)
-pms = promoters(txdb, upstream=1000, downstream=0) # 120545
-pms= pms[grep("scaffold|Contig",seqnames(pms),invert=T)]# 118590
-pms.a = pms[grep("A",seqnames(pms)),]
-pms.d = pms[grepl("D",seqnames(pms))&grepl("[.]1$",names(pms)),]
-pms=list(A=pms.a,D=pms.d)
-
-# specify paired-end BAMs from A2, D5, F1
-bam.files=grep("A6H_",list.files(patter="sort.bam$"),invert=T,value=T)
-df=data.frame(BAM=bam.files, genome=substring(bam.files,1,1),digestion=substring(bam.files,3,3))
-# Chr D01 blacklist
 
 # separate A and D subgenomes for analysis
 for(g in c("A","D"))
@@ -390,25 +381,60 @@ for(g in c("A","D"))
     resF  <- glmQLFTest(fit, contrast=makeContrasts(groupFL-groupFH,levels=design))
     resM  <- glmQLFTest(fit, contrast=makeContrasts(groupML-groupMH,levels=design))
     resHr  <- glmQLFTest(fit, contrast=makeContrasts((groupFL-groupFH)-(groupPL-groupPH),levels=design))
-    resPr  <- glmQLFTest(fit, contrast=makeContrasts((groupML-groupMH)-(groupFL-groupFH),levels=design))
-    
-    for(i in c("resDi","resF","resM","resHr","resPr"))
-    {
-        print(i)
-        res=get(i)
-        # merging windows, Correcting for multiple testing.
-        merged <- mergeResults(working.windows, res$table, tol=200L)
-        # overlap to ACRs, Correcting for multiple testing.
-        olACR <- overlapResults(working.windows, tab=res$table, regions=peaks[[g]])
-        # overlap to promoters, Correcting for multiple testing.
-        olP <- overlapResults(working.windows, tab=res$table, regions=pms[[g]])
-        save(merged, olACR, olP, file=paste0(i,"_",g,".",med,".rdata"))
-    }
+    resWr  <- glmQLFTest(fit, contrast=makeContrasts((groupML-groupMH)-(groupFL-groupFH),levels=design))
+    resPr  <- glmQLFTest(fit, contrast=makeContrasts((groupML-groupMH)-(groupPL-groupPH),levels=design))
+    #  save
+    save(working.windows,resDi,resF,resM,resHr,resPr,resWr, file=paste0("res_",g,".",med,".rdata"))
 }
 
+# input promoters: 2kb upstream of TSS
+### import genome annotation
+txdb <- loadDb("../../refGenomes/txdb.F2020.sqlite")
+gns= genes(txdb)
+gns= gns[grep("scaffold|Contig",seqnames(gns),invert=T)]# 80783->78962
+quantile(width(gns))
+gns.a = gns[grepl("A",seqnames(gns)),]
+gns.d = gns[grepl("D",seqnames(gns)),]
+gns=list(A=gns.a,D=gns.d)
+# get promoter
+getTSS=function(txdb, include=NULL, exclude.pattern=NULL, be=1000, af=1000){
+    tss =  genes(txdb)
+    if(!is.null(exclude.pattern)) {tss = tss[grep(exclude.pattern,tss$gene_id,invert=T)]}
+    if(!is.null(include)) {tss = tss[tss$gene_id %in% include]}
+    # +
+    end(tss[strand(tss)=="+",])  =start(tss[strand(tss)=="+",])+af
+    start(tss[strand(tss)=="+",])  =start(tss[strand(tss)=="+",])-be
+    # -
+    start(tss[strand(tss)=="-",])=end(tss[strand(tss)=="-",])-af
+    end(tss[strand(tss)=="-",])=end(tss[strand(tss)=="-",])+be
+    # remove duplicated TSSes ie alternative transcripts
+    # this keeps the first instance and removes duplicates
+    tss=tss[!duplicated(tss),]
+    seqlevels(tss)=unique(as.character(seqnames(tss)))
+    return(tss)
+}
+#
+pms=  getTSS(txdb, exclude.pattern="Gorai.N", be=1000, af=0)
+pms.a = pms[grep("A",seqnames(pms))] #41739
+pms.d = pms[grep("D",seqnames(pms))] #37218
+pms1k=list(A=pms.a,D=pms.d)
+#
+pms=  getTSS(txdb, exclude.pattern="Gorai.N", be=2000, af=0)
+pms.a = pms[grep("A",seqnames(pms))] #41739
+pms.d = pms[grep("D",seqnames(pms))] #37218
+pms2k=list(A=pms.a,D=pms.d)
+#
+pms=  getTSS(txdb, exclude.pattern="Gorai.N", be=500, af=0)
+pms.a = pms[grep("A",seqnames(pms))] #41739
+pms.d = pms[grep("D",seqnames(pms))] #37218
+pms500=list(A=pms.a,D=pms.d)
+#
+pms=  getTSS(txdb, exclude.pattern="Gorai.N", be=300, af=0)
+pms.a = pms[grep("A",seqnames(pms))] #41739
+pms.d = pms[grep("D",seqnames(pms))] #37218
+pms300=list(A=pms.a,D=pms.d)
 
 # Examine results
-
 sigRes=function(res, label=NULL){
     require(reshape2)
     names(res) # "regions"  "combined" "best"
@@ -434,32 +460,178 @@ sigRes=function(res, label=NULL){
     if(!is.na(label)){lres$label=label}
     return(lres)
 }
-fl<-list.files(pattern="^res")
-for(f in fl){
-    load(f)
-    print(f)
-    flag=unlist(strsplit(f,"_|[.]"))
-    sr<-rbind(sigRes(merged,"SlidingW"), sigRes(olACR,"ACR"), sigRes(olP,"Promoter"))
-    sr$test=flag[1]
-    sr$genome=flag[2]
-    # print(sumRes)
-    if(f==fl[1]){sumtbl=sr}else{sumtbl=rbind(sumtbl,sr)}
+
+for(g in c("A","D"))
+{
+    # get working windows for the desired analysis
+    med="counts.local.tmm"
+    load( paste0("res_",g,".",med,".rdata"))
+    
+    for(i in c("resDi","resF","resM","resHr","resWr","resPr"))
+        {
+            print(i)
+            res=get(i)
+            # merging windows, Correcting for multiple testing.
+            merged <- mergeResults(working.windows, res$table, tol=200L)
+            # overlap to ACRs, Correcting for multiple testing.
+            olACR <- overlapResults(working.windows, tab=res$table, regions=peaks[[g]])
+            # overlap to promoters, Correcting for multiple testing.
+            olG <- overlapResults(working.windows, tab=res$table, regions=gns[[g]])
+            olP300 <- overlapResults(working.windows, tab=res$table, regions=pms300[[g]])
+            olP500 <- overlapResults(working.windows, tab=res$table, regions=pms500[[g]])
+            olP1k <- overlapResults(working.windows, tab=res$table, regions=pms1k[[g]])
+            olP2k <- overlapResults(working.windows, tab=res$table, regions=pms2k[[g]])
+            sr<-rbind(sigRes(merged,"SlidingW"), sigRes(olACR,"ACR"),sigRes(olG,"Gene"), sigRes(olP300,"Promoter300"), sigRes(olP500,"Promoter500"), sigRes(olP1k,"Promoter1k"), sigRes(olP2k,"Promoter2k"))
+            sr$test=i
+            sr$genome=g
+            print(sr)
+            # print(sumRes)
+            if(g=="A"&i=="resDi"){sumtbl=sr}else{sumtbl=rbind(sumtbl,sr)}
+            #save(merged, olACR, olG, olP300,olP1k, olP2k, file=paste0(i,"_",g,".",med,".rdata"))
+        }
 }
-write.table(sumtbl,file="resNnBp.Fref.txt",row.names=FALSE,sep="\t")
+write.table(sumtbl,file="resNnBp.F1ref.txt",row.names=FALSE,sep="\t")
 sumtbl
 
-x<-read.table("resNnBp.Fref.txt",header=T,sep="\t")
+## Plot results
+x<-read.table("resNnBp.F1ref.txt",header=T,sep="\t")
+Pr<-x[x$test=="resPr"&x$Var1=="sigBp"&x$label=="SlidingW"&x$FDR=="combined",]
+Hr<-x[x$test=="resHr"&x$Var1=="sigBp"&x$label=="SlidingW"&x$FDR=="combined",]
+Pr$fold = Pr$value/Hr$value
+# plot effect
 library(ggplot2)
-pdf("resNnBp.Fref.pdf")
+pdf("resNnBp.F1ref.pdf")
 ss<- theme_bw()+ theme(legend.position = "right")+ theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))
 # resHr vs resPr, separate N and Bp.
-ggplot(data=x[x$test%in%c("resHr","resPr")&x$Var1=="sigN",],aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss
-ggplot(data=x[x$test%in%c("resHr","resPr")&x$Var1=="sigBp",],aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss
+ggplot(data=x[x$test%in%c("resHr","resPr","resWr")&x$Var1=="sigN",],aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss +   xlab("") + ylab("Number")
+ggplot(data=x[x$test%in%c("resHr","resPr","resWr")&x$Var1=="sigBp",],aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss+   xlab("") + ylab("Size (bp)")
+ggplot(data=x[x$test%in%c("resHr","resPr","resWr")&x$Var1=="sigN"&grepl("Promoter",x$label),],aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss+   xlab("") + ylab("Number")
+ggplot(data=x[x$test%in%c("resHr","resPr","resWr")&x$Var1=="sigBp"&grepl("Promoter",x$label),],aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss+   xlab("") + ylab("Size (bp)")
 # resDi, F, M
-ggplot(data=x[x$test%in%c("resDi","resF","resM")&x$Var1=="sigN",], aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss
-ggplot(data=x[x$test%in%c("resDi","resF","resM")&x$Var1=="sigBp",], aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss
+ggplot(data=x[x$test%in%c("resDi","resF","resM")&x$Var1=="sigN",], aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss+   xlab("") + ylab("Number")
+ggplot(data=x[x$test%in%c("resDi","resF","resM")&x$Var1=="sigBp",], aes(x=test,y=value,group=test,fill=Var2))+geom_bar(stat="identity")+ facet_grid(genome~label+FDR)+ss+   xlab("") + ylab("Size (bp)")
 dev.off()
 # CONCLUSION: 1.Pr > Hr increased accessibility for ACR, genome-wid, and 1kb promoter, what about gene body and other locations, eg. TE? 2. best and combined results are quite consistent
+# ~ 400 merged regions with DA, quite stringent, not sure if worth pursuing details
+
+## Annotate DA merged results ##
+################################
+# merged - annotate genomic distribution, ChIPseeker??
+# ACR
+library(ChIPseeker) # module load r-udunits2
+library(gridExtra)
+# summary
+getPeakInfo = function(peakAnno){
+    anno =peakAnno@anno
+    catLevel = c( "Promoter (<=1kb)", "Promoter (1-2kb)", "Promoter (2-3kb)", "Downstream (<1kb)", "Downstream (1-2kb)", "Downstream (2-3kb)", "Exon", "Intron", "Distal Intergenic" , "5' UTR","3' UTR")
+    direction=factor(anno$direction)
+    category = factor(anno$annotation2,levels = catLevel)
+    nn<-aggregate(rep(1,length(anno)),list(category,direction),sum)
+    names(nn)<-c("Feature","direction","Number")
+    ss<-aggregate(width(anno),list(category,direction),sum)
+    names(ss)<-c("Feature","direction","RegionSize")
+    df=data.frame(Feature=rep(catLevel,each=2), direction=c("up","down"))
+    df=merge(merge(df,nn,all.x=T),ss,all.x=T)
+    #df =data.frame(Feature=catLevel, Number = tapply(width(anno),list(category,direction),sum), RegionSize = tapply(rep(1,length(category)),category,sum) )
+    rownames(df)=NULL
+    df[is.na(df)]=0
+    df$NumberPerc = df$Number/sum(df$Number)
+    df$RegionSizePerc = df$RegionSize/sum(df$RegionSize)
+    return(df)
+}
+dflist2df = function(df.list)
+{
+    samples = names(df.list)
+    df = df.list[[1]]
+    df$Sample=samples[1]
+    for(i in 2:length(samples)){
+        x = df.list[[i]]
+        x$Sample = samples[i]
+        df = rbind(df, x)
+    }
+    # levels(df$Feature)=c( "Promoter (<=1kb)", "Promoter (1-2kb)", "Promoter (2-3kb)", "Exon", "Intron", "Downstream (<=300)","Distal Intergenic" )
+    # df$Sample=factor(df$Sample, levels=c("A2","D5","F1.At","F1.Dt","AD1.At","AD1.Dt"))
+    return(df)
+}
+plotPeakInfo = function(df, y=c("Number", "RegionSize", "NumberPerc", "RegionSizePerc") ,xlab="", ylab="Peak region (bp)", title="")
+{
+    p <- ggplot(df, aes_string(x = "Sample", fill = "Feature", y = y)) + geom_bar(stat="identity") + facet_wrap(~direction)
+    p <- p + ylab(ylab) + xlab(xlab) + ggtitle(title)
+    p <- p + coord_flip() + theme_bw()
+    ff<-c("Promoter (2-3kb)","Promoter (1-2kb)","Promoter (<=1kb)","Intron","Exon", "Downstream (2-3kb)","Downstream (1-2kb)","Downstream (<1kb)","Distal Intergenic")
+    #ff<-c( "Distal Intergenic", "Downstream (<1kb)", "Downstream (1-2kb)", "Downstream (2-3kb)", "Exon",  "Intron","Promoter (<=1kb)","Promoter (1-2kb)","Promoter (2-3kb)")
+    p <- p+scale_fill_manual(values=rev(getCols(9)[match(rev(levels(factor(df$Feature))),ff)]), guide=guide_legend(reverse=T))
+    return(p)
+    print(p)
+}
+getCols <- function(n) {
+    col <- c("#8dd3c7", "#ffffb3", "#bebada",
+    "#fb8072", "#80b1d3", "#fdb462",
+    "#b3de69", "#fccde5", "#d9d9d9",
+    "#bc80bd", "#ccebc5", "#ffed6f")
+    
+    col2 <- c("#1f78b4", "#ffff33", "#c2a5cf",
+    "#ff7f00", "#810f7c", "#a6cee3",
+    "#006d2c", "#4d4d4d", "#8c510a",
+    "#d73027", "#78c679", "#7f0000",
+    "#41b6c4", "#e7298a", "#54278f")
+    
+    col3 <- c("#a6cee3", "#1f78b4", "#b2df8a",
+    "#33a02c", "#fb9a99", "#e31a1c",
+    "#fdbf6f", "#ff7f00", "#cab2d6",
+    "#6a3d9a", "#ffff99", "#b15928")
+    
+    ## colorRampPalette(brewer.pal(12, "Set3"))(n)
+    colorRampPalette(col3)(n)
+}
+txdb <- loadDb("../../refGenomes/txdb.F2020.sqlite")
+anL=list()
+for(g in c("A","D"))
+{
+    # get working windows for the desired analysis
+    med="counts.local.tmm"
+    load( paste0("res_",g,".",med,".rdata"))
+    for(i in c("resDi","resF","resM","resHr","resWr","resPr"))
+        {
+            print(i)
+            res=get(i)
+            # merging windows, Correcting for multiple testing.
+            merged <- mergeResults(working.windows, res$table, tol=200L)
+            gr<-merged$regions
+            gr$FDR<-merged$combined$FDR
+            gr$direction<-merged$combined$direction
+            gr<-gr[gr$FDR<0.05]
+            # ChiPseeker
+            an = annotatePeak(gr, TxDb=txdb, tssRegion=c(-3000, 3000), verbose=FALSE,genomicAnnotationPriority = c("Promoter","Exon", "Intron", "Downstream", "Intergenic","5UTR", "3UTR"))
+            an@anno$annotation2=gsub("on .*","on",an@anno$annotation)
+            print(an)
+            anL[[paste0(i,g)]]<-an
+        }
+}
+# plot summary
+df = dflist2df(lapply(anL, getPeakInfo))
+df=df[df$Number>0,]
+df$Test<-"between"
+df$Test[df$Sample%in%c("resDiA","resDiD","resFA","resFD","resMA","resMD")]="within"
+df$Feature= factor(df$Feature)
+save(anL, df, file="merged.annotation.rdata")
+#
+pdf("merged.annotation.pdf")
+print(plotAnnoBar(anL, title="Footprints Distribution"))
+p1<-plotPeakInfo(df[df$Test=="within",], y="RegionSize",ylab ="Peak region (bp)")
+p2<-plotPeakInfo(df[df$Test=="within",], y="RegionSizePerc",ylab ="Peak region %")
+p3<-plotPeakInfo(df[df$Test=="within",], y="Number",ylab ="Peak number")
+p4<-plotPeakInfo(df[df$Test=="within",], y="NumberPerc",ylab ="Peak number %")
+grid.arrange(p4+theme(legend.position="none"),p1+theme(legend.position="none"),p3+theme(legend.position="none"),p2+theme(legend.position="none"),nrow=2,ncol=2)
+p1;p2;p3;p4
+p1<-plotPeakInfo(df[df$Test=="between",], y="RegionSize",ylab ="Peak region (bp)")
+p2<-plotPeakInfo(df[df$Test=="between",], y="RegionSizePerc",ylab ="Peak region %")
+p3<-plotPeakInfo(df[df$Test=="between",], y="Number",ylab ="Peak number")
+p4<-plotPeakInfo(df[df$Test=="between",], y="NumberPerc",ylab ="Peak number %")
+grid.arrange(p4+theme(legend.position="none"),p1+theme(legend.position="none"),p3+theme(legend.position="none"),p2+theme(legend.position="none"),nrow=2,ncol=2)
+p1;p2;p3;p4
+dev.off()
+
 
 # --- ABANDON BELOW
 

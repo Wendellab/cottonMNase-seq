@@ -9,8 +9,7 @@
 
 **Scripts**
 
-- [runTrimGalo
-- [re.sh](Scripts/runTrimGalore.sh) for quality trimming and sequence adaptors removal.
+- [runTrimGalore.sh](Scripts/runTrimGalore.sh) for quality trimming and sequence adaptors removal.
 - [runBowtie2.D.sh](Scripts/runBowtie2.D.sh) is an example for Bowtie2 mapping against the D-genome reference, which needs to be moditified for different reference genome used.
 - [repBam2Bed.r](Scripts/repBam2Bed.r) converted mapping results BAM to BED files and pooled replicates.
 - [iseg.pre.r](Scripts/iseg.pre.r), [iseg.run.r](Scripts/iseg.run.r) and [iseg.summary.r](Scripts/iseg.summary.r) performed L-H and iSeg analysis and summary.
@@ -221,7 +220,7 @@ Originally, each `BED` file (individual replicate, not pooled) was parsed into t
 
 ### 3.1 Segmentation of sensitive and resistant fragments
 
-The algorithm [iSeg](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2140-3) ([web server](http://lebesgue.fgcu.edu/iSeg)) identifies candidate segments from normalized differential genome coverage, [latest source](http://lebesgue.fgcu.edu/iSeg/downloads.html). Version 1.3.2 or v190207 was used for this analysis.
+The algorithm [iSeg](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-018-2140-3) ([web server](http://lebesgue.fgcu.edu/iSeg)) identifies candidate segments from normalized differential genome coverage, [latest source](http://lebesgue.fgcu.edu/iSeg/downloads.html). Version 1.3.4 was used for this analysis.
 
 First, input files for iSeg need to be prepared from BED files, including individual and pooled runs, using script [iseg.pre.r](Scripts/iseg.pre.r). The coverage of Heavy and Light digested reads were estimated and quantile normalized across 20 bp windows tilling the genome, to generate DNS (D = L - H) profiles. Once BedGrapgh files (e.g. `A6D_q20_chr.size_w20_qnorm.bg`) are ready, inspect their MAD and SD values across genome. The BigWig files were inspected with IGV, and an issue of [mitochondria DNA insertion into D5 chr01](Discussion/mtInsertionD5.docx) was discussed.
 
@@ -269,7 +268,11 @@ Use ChIPseeker for peak annotation with [segAnno.r](Scripts/segAnno.r):
 
 Other peak annotation tools include seqMINER, HTSeq, [ngsplot](https://github.com/shenlab-sinai/ngsplot)
 
-### 3.4 Motif discovery and fuctional annotation of segements
+### 3.4 Differential accessibility analysis using CSAW
+
+All MNase-seq reads were mapped to the chosen reference genome (F1 -  [diffACRs_csaw_F1ref.r](Scripts/diffACRs_csaw_F1ref.r):  ; AD1 - [diffACRs_csaw_AD1ref.r](scripts/diffACRs_csaw_AD1ref.r)) for DA analyses according to the following designs: (a) light vs. heavy in diploids; (b) light vs. heavy in F1; (c) light vs. heavy in AD1; (d) F1:light-heavy vs. diploids:light-heavy, representing hybridization effect; and (e) AD1:light-heavy vs. F1:light-heavy, representing polyploidization effect.
+
+
 
 
 ## 4. Nucleosome positioning analysis

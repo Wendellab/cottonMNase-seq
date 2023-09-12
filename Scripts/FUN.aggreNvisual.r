@@ -42,36 +42,36 @@ getTSS=function(txdb, include=NULL, exclude.pattern=NULL, be=1000, af=1000){
     tss =  genes(txdb)
     if(!is.null(exclude.pattern)) {tss = tss[grep(exclude.pattern,tss$gene_id,invert=T)]}
     if(!is.null(include)) {tss = tss[tss$gene_id %in% include]}
-    # end of the + strand genes must be equalized to start pos
-    end(tss[strand(tss)=="+",])  =start(tss[strand(tss)=="+",])
-    # start of the - strand genes must be equalized to end pos
-    start(tss[strand(tss)=="-",])=end(tss[strand(tss)=="-",])
-    # define flanking region
-    start(tss)=start(tss)-be
-    end(tss)  = end(tss)+ af
+    # +
+    end(tss[strand(tss)=="+",])  =start(tss[strand(tss)=="+",])+af
+    start(tss[strand(tss)=="+",])  =start(tss[strand(tss)=="+",])-be
+    # -
+    start(tss[strand(tss)=="-",])=end(tss[strand(tss)=="-",])-af
+    end(tss[strand(tss)=="-",])=end(tss[strand(tss)=="-",])+be
     # remove duplicated TSSes ie alternative transcripts
     # this keeps the first instance and removes duplicates
     tss=tss[!duplicated(tss),]
     seqlevels(tss)=unique(as.character(seqnames(tss)))
     return(tss)
 }
+
 getTTS=function(txdb, include=NULL, exclude.pattern=NULL, be=1000, af=1000){
     tts =  genes(txdb)
     if(!is.null(exclude.pattern)) {tts = tts[grep(exclude.pattern,tts$gene_id,invert=T)]}
     if(!is.null(include)) {tts = tts[tts$gene_id %in% include]}
-    # start of the + strand genes must be equalized to end pos
-    start(tts[strand(tts)=="+",])  =end(tts[strand(tts)=="+",])
-    # end of the - strand genes must be equalized to start pos
-    end(tts[strand(tts)=="-",])=start(tts[strand(tts)=="-",])
-    # define flanking region
-    start(tts)=start(tts)-be
-    end(tts)  = end(tts)+ af
+    # +
+    end(tss[strand(tss)=="+",])   = end(tss[strand(tss)=="+",])+af
+    start(tss[strand(tss)=="+",]) = end(tss[strand(tss)=="+",])-be
+    # -
+    end(tss[strand(tss)=="-",])   = start(tss[strand(tss)=="-",])+be
+    start(tss[strand(tss)=="-",]) = start(tss[strand(tss)=="-",])-af
     # remove duplicated TSSes ie alternative transcripts
     # this keeps the first instance and removes duplicates
     tts=tts[!duplicated(tts),]
     seqlevels(tts)=unique(as.character(seqnames(tts)))
     return(tts)
 }
+
 plotTSSnTTS=function(bw.files,tss.gr,tts.gr,tag,title)
 {
     require(genomation)

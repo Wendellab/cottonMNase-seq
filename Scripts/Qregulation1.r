@@ -173,4 +173,55 @@ sbatch(cfile, name="JOB", time = "06:00:00", N=1, n=8)
 ########################
 ## Aggregation on TEs ##
 ########################
+load("Qregulation/bws.rdata")
+g=c("A","D","F","M")
+refBeds = c("refGenomes/A2WHU.gypsy.bed", "refGenomes/D5.gypsy.bed", "refGenomes/F2020.gypsy.bed", "refGenomes/AD1utx.gypsy.bed")
+refIBeds = c("refGenomes/A2WHU.gypsy.intact.bed", "refGenomes/D5.gypsy.intact.bed", "refGenomes/F2020.gypsy.intact.bed", "refGenomes/AD1utx.gypsy.intact.bed")
+names(refBeds) = g
+names(refIBeds) = g
 
+# Plot over gene body (-1.5, 3, 1.5)
+cfile= "Qregulation/command.aggregateGypsy.GB.sh"
+cat("module load py-deeptools\nmodule load bedtools2", file=cfile,sep="\n")
+for(genome in g){
+    bed=refBeds[genome]
+    bedI=refIBeds[genome]
+    select = (df$genome==genome& (df$combo==TRUE |grepl("ATAC",df$feature)| grepl("DNase",df$feature)))
+    use0=df[select,]
+    
+    for(each in use0$feature){
+        use = df[select & df$feature==each, ]
+        bws=use$bigwig
+        labels=use$feature
+        cmd=paste0("computeMatrix scale-regions -S ",bws," -R ",bed," ",bedI," --samplesLabel ",labels," -o scaleGeneBody.gz --regionBodyLength 3000 -b 1500 -a 1500 --skipZeros\nplotProfile -m scaleGeneBody.gz -out Qregulation/plotGypsy.",each,".",genome,".png")
+        cat(cmd, file =cfile,sep="\n", append=TRUE)
+    }
+}
+system(paste0("cat ",cfile))
+#system(paste0("bash ",cfile))
+sbatch(cfile, name="JOB", time = "06:00:00", N=1, n=8)
+
+
+# Plot over TSS and TES (-1.5, 1.5)
+cfile= "Qregulation/command.aggregateGypsy.Points.sh"
+cat("module load py-deeptools\nmodule load bedtools2", file=cfile,sep="\n")
+for(genome in g){
+    bed=refBeds[genome]
+    bedI=refIBeds[genome]
+    select = (df$genome==genome&df$combo==TRUE)
+    use0=df[select,]
+    # c("NO_L","NO_H","DNS","SPO","SPOfcenter","NP")
+    for(each in use0$feature){
+        use = df[select & df$feature==each, ]
+        bws=use$bigwig
+        labels=use$feature
+        cmd=paste0("computeMatrix reference-point --referencePoint TSS -S ",bws," -R ",bed," ",bedI," --samplesLabel ",labels," -o point.gz -b 1500 -a 1500 --skipZeros\nplotProfile -m point.gz -out Qregulation/plotGypsySS.",each,".",genome,".png")
+        cat(cmd, file =cfile,sep="\n", append=TRUE)
+        cmd=paste0("computeMatrix reference-point --referencePoint TES -S ",bws," -R ",bed," ",bedI," --samplesLabel ",labels," -o point.gz -b 1500 -a 1500 --skipZeros\nplotProfile -m point.gz -out Qregulation/plotGypsyES.",each,".",genome,".png")
+        cat(cmd, file =cfile,sep="\n", append=TRUE)
+    }
+}
+system(paste0("cat ",cfile))
+#system(paste0("bash ",cfile))
+sbatch(cfile, name="JOB", time = "06:00:00", N=1, n=8)
+    

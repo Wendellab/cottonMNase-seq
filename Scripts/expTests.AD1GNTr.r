@@ -475,6 +475,15 @@ names(mid)=paste0("SD5-mid-",c("S11","S12","S21","S22","S31","S32"))
 total = cbind(A2$count,D5$count,F1.t,AD1.t,mid)
 c(colSums(libT[1:2,c(names(A2$count),names(D5$count),names(F1$count),names(AD1$count))]), rep(mean(libTotal),6) )
 
+# total TPM
+AD1tpm<-cbind(AD1$tpm[grep("A$",rownames(AD1$tpm)),], AD1$tpm[grep("D$",rownames(AD1$tpm)),])
+rownames(AD1tpm) =gsub(".A$","",rownames(AD1tpm))
+names(AD1tpm)=paste(names(AD1tpm),c("A","A","A","D","D","D"),sep=".")
+F1tpm = cbind(F1$tpm[grep("A$",rownames(F1$tpm)),], F1$tpm[grep("D$",rownames(F1$tpm)),])
+rownames(F1tpm) =gsub(".A$","",rownames(F1tpm))
+names(F1tpm)=paste(names(F1tpm),c("A","A","A","D","D","D"),sep=".")
+totalTPM = cbind(A2$tpm,D5$tpm,getTotal(F1$tpm),getTotal(AD1$tpm),F1tpm,AD1tpm)
+save(tpmN,totalTPM, file="diffExprPatternTPM.rdata")
 
 # check total grouping
 library(ggplot2)

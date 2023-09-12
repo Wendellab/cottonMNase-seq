@@ -3,6 +3,7 @@
 ########################################################
 # Do different approaches - DNS, SPO, and ATAC provide a conserved view of chromatin assessiblity?
 
+# module use /opt/rit/spack-modules/lmod/linux-rhel7-x86_64/Core
 # module load py-deeptools
 # module load r/3.5.0-py2-ufvuwmm
 # module load bedtools2
@@ -34,93 +35,102 @@ library(GenomicFeatures)
 library(plot.matrix)
 library(gplots)
 
+extraCols_narrowPeak <- c(signalValue = "numeric", pValue = "numeric", qValue = "numeric", peak = "integer")
+
+# Han et al.
+peaks0 = import("DNase/D5/MvG.intersect.bed", format="bed",extraCols = extraCols_narrowPeak)
+peaks0 #12960
+DHS.2023.g=peaks0
+peaks0 = import("DNase/D5/macs2.intersect.bed", format="bed",extraCols = extraCols_narrowPeak)
+peaks0 #27717
+DHS.2023.c=peaks0
+
 # DNase-seq DHS macs2, combine
-peaks0 = import("DNase/D5/macs2.combine.bed", format="bed")
+peaks0 = import("Qregulation1/D5.dnase.macs2.combine.bed", format="bed")
 peaks0 #38108
 DHS.macs2.c=peaks0
 
 # DNase-seq DHS macs2, intersect
-extraCols_narrowPeak <- c(signalValue = "numeric", pValue = "numeric", qValue = "numeric", peak = "integer")
-peaks0 = import("DNase/D5/macs2.intersect.bed", format="bed",extraCols = extraCols_narrowPeak)
+peaks0 = import("Qregulation1/D5.dnase.macs2.intersect.bed", format="bed",extraCols = extraCols_narrowPeak)
 peaks0=peaks0[width(peaks0)>1,]
 peaks0 #12960
 DHS.macs2.i=peaks0
 
 # ACR homer. combined
-peaks0 = import("ATAC/peaks/homer.combine.bed", format="bed")
+peaks0 = import("Qregulation1/homer.combine.bed", format="bed")
 peaks0 #17102
 ATAC.homer.c=peaks0
 
 # ACR homer.intersect
-peaks0 = import("ATAC/peaks/homer.intersect.bed", format="bed")
+peaks0 = import("Qregulation1/homer.intersect.bed", format="bed")
 peaks0 #7479
 ATAC.homer.i=peaks0
 
 # ACR macs2, combine
-peaks0 = import("ATAC/peaks/macs2.combine.bed", format="bed")
+peaks0 = import("Qregulation1/macs2.combine.bed", format="bed")
 peaks0 #16195
 ATAC.macs2.c=peaks0
 
 # ACR macs2, intersect
-peaks0 = import("ATAC/peaks/macs2.intersect.bed", format="bed",extraCols = extraCols_narrowPeak)
+peaks0 = import("Qregulation1/macs2.intersect.bed", format="bed",extraCols = extraCols_narrowPeak)
 peaks0=peaks0[width(peaks0)>1,]
 peaks0 #6171
 ATAC.macs2.i=peaks0
 
 # ACRs genrich
-peaks0 = import("ATAC/peaks/genrich.narrowPeak", format="narrowPeak")
+peaks0 = import("Qregulation1/genrich.narrowPeak", format="narrowPeak")
 peaks0 #11687
 ATAC.genrich=peaks0
 
 # MSFs
 bl =GRanges("Chr01", IRanges(23162000, 23820000))
 # blacklist region
-peaks0 = import("isegRes/iseg_v1.3.4_083120/DcD_bc4.0.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/DcD_bc4.0.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]
 h=findOverlaps(peaks,bl); length(h) # 907 in black region
 MSF.bc4=peaks[-queryHits(h)]; length(MSF.bc4)# 147291
 
-peaks0 = import("isegRes/iseg_v1.3.4_083120/DcD_bc4.5.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/DcD_bc4.5.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]; peaks
 h=findOverlaps(peaks,bl); length(h)
 MSF.bc4.5=peaks[-queryHits(h)]; length(MSF.bc4.5)# 114730
 
-peaks0 = import("isegRes/iseg_v1.3.4_083120/DcD_bc5.0.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/DcD_bc5.0.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]; peaks
 h=findOverlaps(peaks,bl); length(h)
 MSF.bc5=peaks[-queryHits(h)]; length(MSF.bc5)# 93820
 
-peaks0 = import("isegRes/iseg_v1.3.4_083120/DcD_bc5.5.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/DcD_bc5.5.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]; peaks
 h=findOverlaps(peaks,bl); length(h)
 MSF.bc5.5=peaks[-queryHits(h)]; length(MSF.bc5.5)# 73930
 
-peaks0 = import("isegRes/iseg_v1.3.4_083120/DcD_bc6.0.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/DcD_bc6.0.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]; peaks # 63282
 h=findOverlaps(peaks,bl); length(h) # 1241 in black region
-MSF.bc6=peaks[-queryHits(h)];  length(MSF.bc6.0)# 62041
+MSF.bc6.0=peaks[-queryHits(h)];  length(MSF.bc6.0)# 62041
 
-peaks0 = import("isegRes/iseg_v1.3.4_083120/DcD_bc6.5.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/DcD_bc6.5.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]; peaks # 48287
 h=findOverlaps(peaks,bl); length(h) # 1238 in black region
 MSF.bc6.5=peaks[-queryHits(h)];  length(MSF.bc6.5)# 47049
 
-peaks = import("mappingD/macs2/Dc_peaks.narrowPeak", format="narrowPeak") #q=0.05
+peaks = import("Qregulation1/Dc_peaks.narrowPeak", format="narrowPeak") #q=0.05
 peaks #48502
 h=findOverlaps(peaks,bl); length(h) # 555 in black region
 MSF.macs2=peaks[-queryHits(h)]; MSF.macs2 #47947
 
-peaks = import("mappingD/macs2/Dc1_peaks.narrowPeak", format="narrowPeak") #q=0.01
+peaks = import("Qregulation1/Dc1_peaks.narrowPeak", format="narrowPeak") #q=0.01
 peaks #12185
 h=findOverlaps(peaks,bl); length(h) # 728 in black region
 MSF.macs2.q1=peaks[-queryHits(h)]; MSF.macs2.q1 # 11457
 
 # SPO Fr
-peaks0 = import("isegRes/SPO/iseg_v1.3.4_060520/D_frenters_bc5.0.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/D_frenters_bc5.0.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]
 SPO.bc5=peaks # 140268
 
-peaks0 = import("isegRes/SPO/iseg_v1.3.4_060520/D_frenters_bc4.5.Fus.bed",format="bed")
+peaks0 = import("Qregulation1/D_frenters_bc4.5.Fus.bed",format="bed")
 peaks = peaks0[peaks0$itemRgb=="#1414FF"]
 SPO.bc4.5=peaks # 231420
 
@@ -129,7 +139,7 @@ SPO.bc4.5=peaks # 231420
 #####################
 
 # compare characteristics: bp, %bp, peak numer, peak width, annotation with respect to genes and TFs
-res=data.frame(type=c("MSF.bc6","MSF.bc6.5","MSF.macs2","MSF.macs2.q1","SPO.bc4.5","SPO.bc5","ATAC.homer.c","ATAC.homer.i","ATAC.genrich","ATAC.macs2.c","ATAC.macs2.i","DHS.macs2.c","DHS.macs2.i"), stringsAsFactors =FALSE)
+res=data.frame(type=c("MSF.bc6.0","MSF.bc6.5","MSF.macs2","MSF.macs2.q1","SPO.bc4.5","SPO.bc5","ATAC.homer.c","ATAC.homer.i","ATAC.genrich","ATAC.macs2.c","ATAC.macs2.i","DHS.macs2.c","DHS.macs2.i","DHS.2023.c","DHS.2023.g"), stringsAsFactors =FALSE)
 for(i in 1:nrow(res))  # loop
 {
     peaks = get(res$type[i])
@@ -142,7 +152,7 @@ for(i in 1:nrow(res))  # loop
     res$max.width[i] = max(width(peaks))
 }
 res
-write.table(res,file="Qregulation/ACRs_D/compareACRs.txt", sep="\t",row.names=F)
+write.table(res,file="Qregulation1/compareACRs.txt", sep="\t",row.names=F)
 resC=res
 
 # Pairwise overlaps - percentage of query found overlaped with subject
@@ -162,19 +172,19 @@ for(c in 1:nrow(res))  # col as subject
     }
 }
 resM
-write.table(resM,file="Qregulation/ACRs_D/compareACRs_overlap.txt", sep="\t",row.names=F)
+write.table(resM,file="Qregulation1/compareACRs_overlap.txt", sep="\t",row.names=F)
 
-pdf("Qregulation/ACRs_D/compareACRs.pdf")
+pdf("Qregulation1/compareACRs.pdf")
 textplot(res,cex=0.5)
 rownames(resM)=colnames(resM)
 par(mar=c(10.1, 10.1, 4.1, 7.1)) # adjust
 m=as.matrix(round(resM*100,1))
 plot(m,col=rev(heat.colors(10)),digit=0.2, na.col="grey", na.print=F, las=2)
 # use
-use= c("MSF.bc6","SPO.bc5" ,"ATAC.genrich","DHS.macs2.i")
+use= c("MSF.bc6.0","SPO.bc5" ,"ATAC.genrich","DHS.macs2.i","DHS.2023.g")
 m=as.matrix(round(resM[use,use]*100,1))
 plot(m,col=rev(heat.colors(10)),digit=0.2, na.col="grey", na.print=F, las=2)
-use= c("MSF.bc6","SPO.bc5" ,"ATAC.macs2.c","DHS.macs2.c")
+use= c("MSF.bc6.0","SPO.bc5" ,"ATAC.macs2.c","DHS.macs2.c","DHS.2023.g")
 m=as.matrix(round(resM[use,use]*100,1))
 plot(m,col=rev(heat.colors(10)),digit=0.2, na.col="grey", na.print=F, las=2)
 par(mar=c(5.1, 4.1, 4.1, 4.1)) # default bottom, left, top, and right
@@ -211,7 +221,7 @@ end(flank) = end(gns) + 2000
 start(flank)[start(flank)<1] =1
 export(flank, file("temp/gene_with_2k_flanking.bed"), format ="bed")
 # TE annotation
-tes = import("refGenomes/TEannotation/phase2/G.raimondii_JGI_221_v2.0.assembly.fasta.EDTA.TEanno.gff", format="gff")
+tes = import("refGenomes/G.raimondii_JGI_221_v2.0.assembly.fasta.EDTA.TEanno.gff", format="gff")
 seqlevels(tes)=gsub("D5_","",seqlevels(tes))
 tes=tes[grep("^Chr",seqnames(tes))]
 table(tes$type)
@@ -231,7 +241,7 @@ for(i in 1:nrow(resC))  # loop
     peaks = peaks[width(peaks)>1,]
         
     # annotate ACRs first with TE
-    peaksTE=annotateACRs_TE(peaks,TEs=tes,upsetplot=TRUE)
+    peaksTE=annotateACRs_TE(peaks,tes,upsetplot=TRUE)
     p.te.upset = peaksTE$plot
     # then with respect to nearby genes
     df = annotateACRs(peaksTE$gr,gns, distance=2000)
@@ -249,10 +259,11 @@ for(i in 1:nrow(resC))  # loop
     rownames(gc_permutation) =res$TE_family
     for(pi in 1:100){
         # shuffle peaks with BEDtools
+        print(pi)
         system("bedtools shuffle -i temp/dACRs.bed -excl temp/gene_with_2k_flanking.bed -g mappingD/chr.size.txt >temp/shuffle.bed; bedtools shuffle -i temp/pACRs.bed -incl temp/gene_with_2k_flanking.bed -g mappingD/chr.size.txt >>temp/shuffle.bed; bedtools shuffle -i temp/gACRs.bed -incl temp/gene_with_2k_flanking.bed -g mappingD/chr.size.txt >>temp/shuffle.bed")
         # import peaks and get TE overlap
         pp = import("temp/shuffle.bed", format="bed")
-        gc_permutation[,pi] = annotateACRs_TE(pp,TEs=tes,upsetplot=FALSE)$en[res$TE_family,"ACR_perc"]
+        gc_permutation[,pi] = annotateACRs_TE(pp,tes,upsetplot=FALSE)$en[res$TE_family,"ACR_perc"]
     }
     pp$type= c(rep("Distal",nrow(d_df)),rep("Proximal",nrow(p_df)),rep("Genic",nrow(g_df)))
     res$null_perc_mean = rowMeans(gc_permutation)
@@ -351,7 +362,7 @@ for(i in 1:nrow(resC))  # loop
     p.gc=ggplot(GC, aes(x=type, y=gc_content, color=type, fill=type)) + geom_violin() + geom_boxplot(width=0.1, color="grey", alpha=0.2) + theme_bw() + theme(legend.position="none",axis.text = element_text(size=15),axis.text.x = element_text(angle = 45, hjust = 1)) + ylab("GC content") + scale_fill_manual(values = mycols) +  scale_color_manual(values = mycols) + facet_grid(. ~ group)
 
     ### plot CG distribution: peaks vs control
-    pdf(paste0("Qregulation/ACRs_D/peakPlots",flag,".pdf"))
+    pdf(paste0("Qregulation1/peakPlots",flag,".pdf"))
     textplot(res_Gene)
     textplot(res_TE)
     textplot(res_GC)
@@ -375,7 +386,7 @@ for(i in 1:nrow(resC))  # loop
     p.te + theme(axis.text = element_text(size=8)),
     nrow = 2, ncol =3, layout_matrix = rbind(c(1,2,5), c(3,4,5)))
     dev.off()
-    save(df, pp, gc_permutation, res_TE, res_Gene, res_GC, gc_anova, file=paste0("Qregulation/ACRs_D/peakRes",flag,".rdata"))
+    save(df, pp, gc_permutation, res_TE, res_Gene, res_GC, gc_anova, file=paste0("Qregulation1/peakRes",flag,".rdata"))
 }
 
 setwd("Qregulation/ACRs_D/")
@@ -419,6 +430,8 @@ p.d
 p.bar
 dev.off()
 
+
+----book 2023/7/30
 ############################
 ## Aggregate ACR on genes ##
 ############################

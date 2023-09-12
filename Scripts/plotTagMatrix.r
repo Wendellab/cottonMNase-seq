@@ -349,3 +349,40 @@ plotAvgProf.internal <- function(tagMatrix, conf,
     }
     return(p)
 }
+
+list_to_dataframe <- function(dataList) {
+    if (is.null(names(dataList)))
+        return(do.call('rbind', dataList))
+
+    cn <- lapply(dataList, colnames) %>% unlist %>% unique
+    cn <- c('.id', cn)
+    dataList2 <- lapply(seq_along(dataList), function(i) {
+        data = dataList[[i]]
+        data$.id = names(dataList)[i]
+        idx <- ! cn %in% colnames(data)
+        if (sum(idx) > 0) {
+            for (i in cn[idx]) {
+                data[, i] <- NA
+            }
+        }
+        return(data[,cn])
+    })
+    res <- do.call('rbind', dataList2)
+    res$.id <- factor(res$.id, levels=rev(names(dataList)))
+    return(res)
+}
+
+getTagCount <- function(tagMatrix, xlim, conf, ...) {
+    ss <- colSums(tagMatrix)
+    ss <- ss/sum(ss)
+    ## plot(1:length(ss), ss, type="l", xlab=xlab, ylab=ylab)
+    pos <- value <- NULL
+    dd <- data.frame(pos=c(xlim[1]:xlim[2]), value=ss)
+    if (!(missingArg(conf) || is.na(conf))){
+        tagCiMx <- getTagCiMatrix(tagMatrix, conf = conf, ...)
+        dd$Lower <- tagCiMx["Lower", ]
+        dd$Upper <- tagCiMx["Upper", ]
+    }
+    return(dd)
+}
+

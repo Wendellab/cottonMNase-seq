@@ -244,9 +244,138 @@ grep "pseudoaligned" mappingIndivR/*log.txt |cut -f3,5 >summaryStat/mapINDIVgntR
 
 ```
 
+### Kallisto Pseudoalignment (2022)
+
+**Aug 2022 Update**: re-run mapping to generate alignment file for IGV
+
+AD1 UTX reference input requires:
+
+1. genome reference: `-i refTranscriptomes/AD1_UTX.gnt`
+2. gene annotation: `--genomebam --gtf refTranscriptomes/td3.gtf`  
+3. genome information: `--chromosomes refTranscriptomes/AD1utx.chr.size.txt`
+
+```bash
+cd /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/
+
+## 1. genome ref
+# get primary transcript FASTA	
+wget ftp://ftp.bioinfo.wsu.edu/species/Gossypium_hirsutum/UTX-TM1_v2.1/genes/Ghirsutum_527_v2.1.transcript_primaryTranscriptOnly.fa.gz
+gunzip Ghirsutum_527_v2.1.transcript_primaryTranscriptOnly.fa.gz
+sed 's/ .*$//g' Ghirsutum_527_v2.1.transcript_primaryTranscriptOnly.fa | awk '/^>/ {P=index($0,"Gohir.1Z")==0} {if(P) print} ' >AD1_UTX.transcripts.fasta
+grep -c '>' AD1_UTX.transcripts.fasta #74902
+# get TE
+ml bedtools2
+zcat AD1_UTX_v2.1.fa.mod.EDTA.TEanno.gff3.gz |grep -v 'Parent'|sed s/^AD1UTX_//g > AD1_UTX_v2.1.fa.mod.EDTA.TEanno.gff3
+bedtools getfasta -fi TM1utx_26.fasta -bed AD1_UTX_v2.1.fa.mod.EDTA.TEanno.gff3 -name+ -s -fo TM1utx_TE.fasta
+# build Kallisto ref
+module load kallisto/0.46.2-py3-openmpi3-bjls6kt
+cd /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/refTranscriptomes
+kallisto index -i AD1_UTX.gnt <(cat AD1_UTX.transcripts.fasta ../../refGenomes/TM1utx_TE.fasta)
+
+## 2. gene annotation
+# GFF3 to GTF
+ml transdecoder
+grep -v "scaffold" ../refGenomes/Ghirsutum_527_v2.1.gene_exons.gff3 |gff3_gene_to_gtf_format.pl - ../refGenomes/TM1utx_26.fasta > refTranscriptomes/td.gtf
+# check if complete 74902 genes
+cd refTranscriptomes
+grep -P -c '\tgene\t' td.gtf # 106647
+grep -P -c '\ttranscript\t' td.gtf # 106647
+wc -l td.gtf  # 2,041,010 td.gtf
+# customize GTF
+ml miniconda3
+cd /work/LAS/jfw-lab/hugj2006/translatome2022
+# Locally create your conda environment by running:
+# conda create -n ribominer python=3.8
+# To activate this environment, use:
+source activate ribominer
+GTFupdate <(grep 'exon' td.gtf) >td1.gtf
+grep -P -c '\tgene\t' td1.gtf # 74902
+grep -P -c '\ttranscript\t' td1.gtf # 106647
+wc -l td1.gtf #  847,900 td1.gtf
+# to match AD1_UTX.transcripts.fasta
+cat td1.gtf | sed 's/.v2.1//g' >td3.gtf
+source deactivate
+
+## 3. genome information
+samtools faidx ../../refGenomes/TM1utx_26.fasta | cut -f1,2 > refTranscriptomes/AD1utx.chr.size.txt`
+```
+
+Noting some stupid rules for Kallisto `--genomecov` to work https://github.com/pachterlab/kallisto/issues/155
+1. version v0.46.1
+2. The required types are gene, transcript and exon, anything else is ignored. Each type must have the required fields of a GTF file, chromosome, start, stop, strand etc.
+
+```bash {runKallisto2022r.slurm}
+#!/bin/bash
+
+#Submit this script with: sbatch thefilename
+# the pronto scheduler is pronto.las.iastate.edu
+# note: change the memory, threads, wall, etc
+#SBATCH --constraint=AVX2
+#SBATCH -t 8:00:00   # walltime
+#SBATCH -N 1   # number of nodes in this job
+#SBATCH -n 8   # total number of processor cores in this job; each node has 272 cores, Nova has 36
+#SBATCH --mem=100G # how much memory you need; each box has ~340G (legion) Nova has 190G or 380G
+
+#SBATCH -J "JOB"   # job name
+#SBATCH --output=runKallisto.%j.txt
+
+#SBATCH --mail-type=FAIL,END
+#SBATCH --mail-user=hugj2006@iastate.edu   # email address
+#SBATCH --partition=whatever # use sinfo to get queue names
 
 
-## 2. Analyze gene expression profiles
+# LOAD MODULES, INSERT CODE, AND RUN YOUR PROGRAMS HERE
+
+echo 'Start'
+date
+
+# ml kallisto/0.46.2-py3-openmpi3-bjls6kt
+# ml kallisto/0.43.1-mpich-5lt6lqk
+# ml kallisto/0.46.2-openmpi3-py3-bjls6kt
+# above versions led to coredump for genomebam
+
+# instal Kallisto v0.46.1
+module load curl/7.56.0-afi32fv py-deeptools
+../../kallisto/kallisto #kallisto 0.46.1
+
+ncores=8
+
+cd /work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/
+# check and filter rRNA, because somme LTR/unknown turned out to be rRNA
+#module load sortmerna
+
+for j in $( ls sortmerna/ |grep 'Maxxa'| grep 'other1.fastq'); do
+echo $j
+echo ${j%%_*}_other2.fastq
+../../kallisto/kallisto quant -t $ncores -i refTranscriptomes/AD1_UTX.gnt -o mapping2022/${j%%_*} --genomebam --gtf refTranscriptomes/td3.gtf --chromosomes refTranscriptomes/AD1utx.chr.size.txt sortmerna/$j sortmerna/${j%%_*}_other2.fastq 2>mapping2022/${j%%_*}.log.txt
+bamCoverage -b mapping2022/${j%%_*}/pseudoalignments.bam -o mapping2022/${j%%_*}.bw --binSize 20 --normalizeUsingRPKM
+done
+
+for j in $( ls sortmerna/ |grep 'A2x'| grep 'other1.fastq'); do
+echo $j
+echo ${j%%_*}_other2.fastq
+../../kallisto/kallisto quant -t $ncores -i refTranscriptomes/AD1_UTX.gnt -o mapping2022/${j%%_*} --genomebam --gtf refTranscriptomes/td3.gtf --chromosomes refTranscriptomes/AD1utx.chr.size.txt sortmerna/$j sortmerna/${j%%_*}_other2.fastq 2>mapping2022/${j%%_*}.log.txt
+bamCoverage -b mapping2022/${j%%_*}/pseudoalignments.bam -o mapping2022/${j%%_*}.bw --binSize 20 --normalizeUsingRPKM
+done
+
+
+echo 'End'
+date
+```
+
+
+
+
+
+## 2. Analyze duplicated gene expression profiles
+
+R scripts, including [expTests.r](scripts/expTests.r) (D5-ref), [expTests.GNT.r](scripts/expTests.GNT.r) (Individual-ref), [expTests.AD1GNT.r](scripts/expTests.AD1GNT.r) (AD1-ref), and etc, perform the following:
+
+* Prepare raw count and tpm tables from mapping results
+* Differential expression analysis
+* Cis-trans analysis
+* Impact of genome evolution: Hr, Pr, Wr
+* Expression dominance analyisis
 
 Ortholog/homoeolog relationships need to be used to link genes from individual genomes
 
@@ -257,12 +386,4 @@ ls /work/LAS/jfw-lab/hugj2006/cottonLeaf/orthohomoeologQuadruplets101218.txt
 # A2_Du, D5, TM1 sacki by Justin
 ls /work/LAS/jfw-lab/hugj2006/cottonLeaf/orthohomoeologQuadruplets101218.txt
 ```
-
-The r code [expTests.r](scripts/expTests.r) performs following:
-
-* Prepare raw count and tpm tables from mapping results
-* Differential expression analysis
-* Cis-trans analysis
-* Impact of genome evolution: Hr, Pr, Wr
-* Expression dominance analyisis
 

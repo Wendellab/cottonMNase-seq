@@ -1,7 +1,7 @@
 library(genomation)
 library(GenomicRanges)
 library(data.table)
-library(ggbio)
+library(ggbio)  ?
 options(scipen=10)
 setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/")
 bgs = list.files("isegRes/", pattern="bg",full=T)
@@ -24,9 +24,9 @@ sl
 nonzero
 
 # after normalization, check "manifest.txt"
-# MAD= 0.0273
-# SD = 1.4826 * MAD
-SD=0.040475
+system("grep 'SD is' isegRes/iseg_v1.3.4_083120/*manifest.txt")
+# MAD is 0.026 and SD is 0.0385476
+SD=0.0385476
 
 ## plot function
 log10hist <- function(x, main = filePath, xlab="",breaks = "Sturges")
@@ -42,14 +42,14 @@ log10hist <- function(x, main = filePath, xlab="",breaks = "Sturges")
 # v1.3.2
 # filedir = "isegRes/isegv1.3.2_032519/"
 # v1.3.4
-filedir = "isegRes/iseg_v1.3.4_062020/"
+filedir = "isegRes/iseg_v1.3.4_083120/"
 fileL = grep("bc.*txt",list.files(filedir),value=TRUE)
 
 ## loop import and report stats for each flag
 flags = unique(gsub("_.*","",fileL))
 for(flag in flags){
     # collect files under same flag
-    flagFiles = fileL[grep(flag,fileL)]
+    flagFiles = fileL[grep(paste0(flag,"_"),fileL)]
     # prep result table
     res = data.frame(ChrName=names(sl[[flag]]), Length = sl[[flag]], Chromosome = 1:length(sl[[flag]]))
     res.nz = data.frame(ChrName=names(nonzero[[flag]]), Length = nonzero[[flag]], Chromosome = 1:length(nonzero[[flag]]))

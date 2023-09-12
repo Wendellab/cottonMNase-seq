@@ -1,5 +1,6 @@
+# module load r/3.5.0-py2-ufvuwmm
 options(scipen=999)
-setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/Ranalysis")
+setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/RNAseq/RanalysisDref")
 # setwd("/work/LAS/jfw-lab/hugj2006/cottonLeaf/DNase")
 ################################
 ## collect expression results ##
@@ -12,11 +13,11 @@ readKallisto=function(dir="", fileL=c()){
         nn<- gsub("/abundance.tsv","",file)
         names(temp.count)[2]<-nn
         names(temp.tpm )[2]<-nn
-        if (!exists("count")) { count<-temp.count } else {count <- merge(count, temp.count, by="target_id")}
+        if (!exists("countG")) { countG<-temp.count } else {countG <- merge(countG, temp.count, by="target_id")}
         if (!exists("tpm"))  { tpm <-temp.tpm } else {tpm <- merge(tpm, temp.tpm, by="target_id")}
     }
-    rownames(count)=gsub("[.]1$|^evm.model.","",count$target_id)
-    count=count[,-1]
+    rownames(countG)=gsub("[.]1$|^evm.model.","",countG$target_id)
+    count=countG[,-1]
     if(length(grep("Gohir.1Z",rownames(count)))>0)
     {count=count[-grep("Gohir.1Z",rownames(count)),]}
     rownames(tpm)=gsub("[.]1$|^evm.model.","",tpm$target_id)
@@ -120,7 +121,12 @@ c("Diploids colSums A2/D5",colSums(A2$tpm[,1:3])/c(colSums(D5$tpm[,1:2]),NA)),
 c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:3])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:3])),
 c("F1 colSums A/D",colSums(F1$tpm[grep("Gar",rownames(F1$tpm)),1:3])/colSums(F1$tpm[grep("Gorai",rownames(F1$tpm)),1:3]))
 )
-checkIndiv # F1 A/D =0.8, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
+checkIndiv
+#                              SD5-A2-S1           SD5-A2-S4           SD5-A2-S5
+# "Diploids colSums A2/D5" "0.999999931546841" "0.999999896400372" NA
+# "AD1 colSums A/D"        "0.959630345341399" "0.984557141903395" "1.00033903174895"
+# "F1 colSums A/D"         "0.887104336968941" "0.820064372304033" "0.817411187224602"
+# F1 A/D =0.8, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
 
 load("expression.Dref.rdata")
 checkDref=rbind(
@@ -128,8 +134,17 @@ c("Diploids colSums A2/D5",colSums(A2$tpm[,1:3])/c(colSums(D5$tpm[,1:2]),NA)),
 c("AD1 colSums A/D",colSums(AD1$tpm[grep("A",rownames(AD1$tpm)),1:3])/colSums(AD1$tpm[grep("D",rownames(AD1$tpm)),1:3])),
 c("F1 colSums A/D",colSums(F1$tpm[grep("A",rownames(F1$tpm)),1:3])/colSums(F1$tpm[grep("D",rownames(F1$tpm)),1:3]))
 )
-checkDref # RSEM resulted into A/D < 1, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
-
+checkDref
+#                                SD5-A2-S1           SD5-A2-S4           SD5-A2-S5
+# "Diploids colSums A2/D5" "0.999999946734633" "0.999999956251074" NA
+# "AD1 colSums A/D"        "0.960868128457913" "0.981038739547472" "0.999570058129578"
+# "F1 colSums A/D"         "0.945935599797269" "0.986246787055491" "0.985976845512076"
+# RSEM resulted into A/D < 1, biasedly assign reads to D genome, need to correct At and Dt library sizes assuming their are equal
+tpm <-cbind(A2$count,D5$count,F1$count[grep("A$",rownames(F1$count)),], F1$count[grep("D$",rownames(F1$count)),],AD1$count[grep("A$",rownames(AD1$count)),], AD1$count[grep("D$",rownames(AD1$count)),])
+pdf("boxplotDref.log2tpm.AvsD.pdf")
+boxplot(log2(tpm+1), las=2)
+dev.off()
+# also slightly higher D than A expression
 
 #################
 ## DE analysis ##
@@ -667,12 +682,12 @@ pdf("plotRegSummary.pdf")
 textplot(sumTbl,cex=0.6)
 dev.off()
 
-----
-
 # restrict to Orthpolog groups
-ogQ<-read.table("../../orthohomoeologQuadruplets101218.txt", sep="\t", header=TRUE)
+ogQ<-read.table("orthohomoeolog052421.txt", sep="\t", header=FALSE)
+dim(ogQ) # 22889
 head(ogQ)
-select=as.character(ogQ$D5)
+select=as.character(ogQ$V5)
+res0=res
 res=res[select,]
 dominance.F1=dominance.F1[select,]
 dominance.AD1=dominance.AD1[select,]
@@ -691,10 +706,12 @@ sumTbl[,c("A","D")]=apply(sumTbl[,c("A","D")],2,as.numeric)
 sumTbl$balance=ifelse(sumTbl$A>sumTbl$D,"A>D","A<D")
 sumTbl$chisqTest.pval = round(apply(sumTbl[,c("A","D")],1,function(x)chisq.test(x)$"p.value") ,6)
 sumTbl
-pdf("plotRegSummary.og20362.pdf")
+pdf("plotRegSummary.og22889.pdf")
 textplot(sumTbl,cex=0.6)
 dev.off()
 
+
+----book
 ## draw complex heapmap check relationships between different patterns
 library(RColorBrewer)
 library(ComplexHeatmap)

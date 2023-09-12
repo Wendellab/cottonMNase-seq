@@ -40,18 +40,18 @@ annotateACRs=function(peaks,features, distance=2000){
 }
 
 # function to annotate peaks located within TEs (completely encompassed by TE intervals)
-annotateACRs_TE=function(peaks, TEs=tes, upsetplot=TRUE){
+annotateACRs_TE=function(peaks, tes,upsetplot=TRUE){
     require(reshape2)
     require(UpSetR)
     # add column of TE family annotation, whether each peak overlap with TE
     hit=findOverlaps(peaks,tes)
     d=data.frame(hit)
-    d$type =tes$type[subjectHits(hit)]
-    type =  aggregate(d$type,list(d$queryHits),function(x)paste0(unique(sort(x)),collapse="; "))
+    d$class =tes$type[subjectHits(hit)]
+    type =  aggregate(d$class,list(d$queryHits),function(x)paste0(unique(sort(x)),collapse="; "))
     peaks$TE =NA
     peaks$TE[type$Group.1] =type$x
     # annotation by family, how each TE annotated peak correspond to multiple TE families
-    number = dcast(d,queryHits~type,length)
+    number = dcast(d,queryHits~class,length)
     rownames(number) =number$queryHits
     number=number[,-1]
     number[number>1]=1
@@ -70,8 +70,25 @@ annotateACRs_TE=function(peaks, TEs=tes, upsetplot=TRUE){
     row.names(en)=en$TE_family
     #print(en)
     if(upsetplot){
-        p=upset(number,nset=nrow(number), order.by="freq",number.angles = 30, point.size = 3.5, line.size = 2, mainbar.y.label = "TE Family Intersections", sets.x.label = "Per TE Family", sets.bar.color = "#56B4E9", text.scale = c(1.3, 1.3, 1, 1, 1.5, 0.75))
+        p=upset(number,nset=nrow(number), order.by="freq",number.angles = 30, point.size = 3.5, line.size = 2, mainbar.y.label = "TE Family Intersections", sets.x.label = "Per TE Family", sets.bar.color = "#56B4E9", text.scale = c(1.3, 1.3, 1, 1, 1.5, 0.65))
         return(list(gr=peaks,by.family=number, enrich = en, plot=p))
     }else{return(list(gr=peaks,by.family=number, enrich = en))}
-    
 }
+getPeakSum=function(acr_df,chr_size){
+    x=data.frame(table(acr_df$type),size=tapply(acr_df$width,list(acr_df$type),sum))
+    names(x)=c("type","number","size")
+    x$numberP = x$number/sum(x$number)
+    x$sizeP = x$size/sum(x$size)
+    x$genomeP = x$size/sum(chr_size$V2)
+    return(x)
+}
+getPeakSumTE=function(acr_df,chr_size){
+    acr_df$TE=gsub("/.*","",acr_df$TE)
+    acr_df$TE[is.na(acr_df$TE)]="nonTE"
+    x=data.frame(table(acr_df$TE),size=tapply(acr_df$width,list(acr_df$TE),sum))
+    names(x)=c("type","number","size")
+    x$numberP = x$number/sum(x$number)
+    x$sizeP = x$size/sum(x$size)
+    return(x)
+}
+
